@@ -175,8 +175,8 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
       if (response.web_items && response.web_items.length > 0) {
         for (const item of response.web_items) {
           if (item.url && !seenUrls.has(item.url)) {
-            item.priority = 1; // 最高优先级
-            allWebItems.push(item);
+            // 创建新对象添加 priority 属性，避免 TypeScript 类型错误
+            allWebItems.push({ ...item, priority: 1 });
             seenUrls.add(item.url);
           }
         }
@@ -210,8 +210,8 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
         if (response.web_items && response.web_items.length > 0) {
           for (const item of response.web_items) {
             if (item.url && !seenUrls.has(item.url)) {
-              item.priority = 2;
-              allWebItems.push(item);
+              // 创建新对象添加 priority 属性，避免 TypeScript 类型错误
+              allWebItems.push({ ...item, priority: 2 });
               seenUrls.add(item.url);
             }
           }
@@ -241,8 +241,8 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
       if (response.web_items && response.web_items.length > 0) {
         for (const item of response.web_items) {
           if (item.url && !seenUrls.has(item.url)) {
-            item.priority = 3;
-            allWebItems.push(item);
+            // 创建新对象添加 priority 属性，避免 TypeScript 类型错误
+            allWebItems.push({ ...item, priority: 3 });
             seenUrls.add(item.url);
           }
         }
