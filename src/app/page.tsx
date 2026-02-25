@@ -40,7 +40,7 @@ interface AIResponse {
 export default function FinanceInsightPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
-  const [newsRefreshing, setNewsRefreshing] = useState(false);
+  const [timeRange, setTimeRange] = useState<'12h' | '24h' | '36h' | '48h'>('24h');
 
   const [holdings, setHoldings] = useState<HoldingChange[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(true);
@@ -61,7 +61,7 @@ export default function FinanceInsightPage() {
   // 加载新闻数据
   useEffect(() => {
     loadNews();
-  }, []);
+  }, [timeRange]); // 当时间段变化时重新加载
 
   // 加载持仓数据
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function FinanceInsightPage() {
   const loadNews = async () => {
     try {
       setNewsLoading(true);
-      const response = await fetch('/api/news');
+      const response = await fetch(`/api/news?timeRange=${timeRange}`);
       if (!response.ok) throw new Error('Failed to load news');
       const data = await response.json();
       setNews(data.news || []);
@@ -80,20 +80,6 @@ export default function FinanceInsightPage() {
       setNews([]);
     } finally {
       setNewsLoading(false);
-    }
-  };
-
-  const refreshNews = async () => {
-    try {
-      setNewsRefreshing(true);
-      const response = await fetch('/api/news/refresh', { method: 'POST' });
-      if (!response.ok) throw new Error('Failed to refresh news');
-      const data = await response.json();
-      setNews(data.news || []);
-    } catch (error) {
-      console.error('Error refreshing news:', error);
-    } finally {
-      setNewsRefreshing(false);
     }
   };
 
@@ -238,26 +224,34 @@ export default function FinanceInsightPage() {
           <TabsContent value="news" className="space-y-4">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      重要金融事件（TOP 20）
-                    </CardTitle>
-                    <CardDescription>
-                      基于豆包AI联网搜索的近24小时国内外重大金融新闻
-                    </CardDescription>
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    重要金融事件（TOP 20）
+                  </CardTitle>
+                  <CardDescription>
+                    基于豆包AI联网搜索的国内外重大金融新闻
+                  </CardDescription>
+                </div>
+                {/* 时间段选择器 */}
+                <div className="flex items-center gap-2 mt-4">
+                  <span className="text-sm text-muted-foreground">查看时段：</span>
+                  <div className="flex gap-2">
+                    {(['12h', '24h', '36h', '48h'] as const).map((range) => (
+                      <button
+                        key={range}
+                        onClick={() => setTimeRange(range)}
+                        className={cn(
+                          "px-3 py-1.5 text-sm rounded-md transition-colors",
+                          timeRange === range
+                            ? "bg-blue-600 text-white hover:bg-blue-700"
+                            : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                        )}
+                      >
+                        {range}
+                      </button>
+                    ))}
                   </div>
-                  <Button
-                    onClick={refreshNews}
-                    disabled={newsRefreshing}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <RefreshCw className={cn("h-4 w-4", newsRefreshing && "animate-spin")} />
-                    刷新
-                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -274,42 +268,37 @@ export default function FinanceInsightPage() {
                     <p className="text-muted-foreground">暂无新闻数据</p>
                   </div>
                 ) : (
-                  <ScrollArea className="h-[600px] pr-4">
-                    <div className="space-y-4">
-                      {news.map((item, index) => (
-                        <Card key={item.id} className={cn(
-                          "transition-all hover:shadow-md cursor-pointer",
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {news.map((item, index) => (
+                      <a
+                        key={item.id}
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block"
+                      >
+                        <Card className={cn(
+                          "transition-all hover:shadow-md cursor-pointer h-full",
                           index < 3 && "border-l-4 border-l-blue-500 dark:border-l-blue-400"
                         )}>
-                          <CardContent className="pt-6">
-                            <div className="flex items-start gap-4">
+                          <CardContent className="pt-4">
+                            <div className="flex items-start gap-3">
                               <div className={cn(
-                                "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white",
+                                "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-sm",
                                 index < 3 ? "bg-blue-600 dark:bg-blue-400" : "bg-slate-600 dark:bg-slate-400"
                               )}>
                                 {item.rank}
                               </div>
                               <div className="flex-1 min-w-0">
-                                {/* AI总结的标题（主要显示） */}
-                                <div className="flex items-start justify-between gap-4 mb-2">
-                                  <h3 className="font-semibold text-lg line-clamp-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                                    {item.aiTitle}
-                                  </h3>
-                                  <a
-                                    href={item.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex-shrink-0"
-                                    title="查看原文"
-                                  >
-                                    <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400" />
-                                  </a>
-                                </div>
+                                {/* AI总结的标题（主要显示，可点击） */}
+                                <h3 className="font-semibold text-base line-clamp-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mb-2">
+                                  {item.aiTitle}
+                                </h3>
                                 
                                 {/* 原新闻标题（次要显示） */}
-                                <div className="mb-3">
-                                  <p className="text-xs text-muted-foreground mb-1">原标题：{item.originalTitle}</p>
-                                </div>
+                                <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
+                                  {item.originalTitle}
+                                </p>
                                 
                                 {/* AI摘要 */}
                                 <p className="text-sm text-foreground mb-3 line-clamp-3 leading-relaxed">
@@ -317,7 +306,7 @@ export default function FinanceInsightPage() {
                                 </p>
                                 
                                 {/* 来源和时间 */}
-                                <div className="flex items-center gap-3 flex-wrap">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   {item.source && (
                                     <Badge variant="secondary" className="text-xs">
                                       {item.source}
@@ -339,7 +328,7 @@ export default function FinanceInsightPage() {
                                         "border-blue-500 text-blue-600 dark:text-blue-400"
                                       )}
                                     >
-                                      重要度: {item.importanceScore}/10
+                                      {item.importanceScore >= 8 ? '★' : item.importanceScore >= 6 ? '★★' : '★'}
                                     </Badge>
                                   )}
                                 </div>
@@ -347,9 +336,9 @@ export default function FinanceInsightPage() {
                             </div>
                           </CardContent>
                         </Card>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                      </a>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>

@@ -32,10 +32,14 @@ const HIGH_QUALITY_SITES = [
   'cnbc.com',
 ];
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // 先尝试从 storage 读取缓存的新闻数据
-    const cachedData = await loadNewsData();
+    // 获取查询参数
+    const { searchParams } = new URL(request.url);
+    const timeRange = searchParams.get('timeRange') || '24h';
+    
+    // 先尝试从 storage 读取指定时间段的缓存数据
+    const cachedData = await loadNewsData(timeRange);
     
     if (cachedData && cachedData.news && cachedData.news.length > 0) {
       return NextResponse.json({
@@ -43,24 +47,26 @@ export async function GET() {
         news: cachedData.news,
         lastUpdated: cachedData.lastUpdated,
         fromCache: true,
+        timeRange: timeRange,
       });
     }
 
-    // 缓存不存在或过期，则进行搜索
+    // 缓存不存在或过期，则进行搜索（默认使用24h）
     const news = await fetchLatestNews();
     
-    // 保存到 storage
+    // 保存到 storage（保存到多个时间段）
     const dataToSave = {
       news,
       lastUpdated: new Date().toISOString(),
     };
-    await saveNewsData(dataToSave);
+    await saveNewsData(dataToSave, '24h');
     
     return NextResponse.json({
       success: true,
       news,
       lastUpdated: new Date().toISOString(),
       fromCache: false,
+      timeRange: '24h',
     });
   } catch (error) {
     console.error('Error fetching news:', error);
