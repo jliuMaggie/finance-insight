@@ -121,13 +121,14 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
   const config = new Config();
   const client = new SearchClient(config);
   
-  // 搜索近24小时的重要金融新闻，优先来自高质量媒体
-  const query = '金融新闻 股市 经济 科技 互联网 AI 芯片 半导体 重要事件 市场波动';
+  // 优化：使用更全面的金融新闻关键词，避免过度偏向AI相关新闻
+  // 参考豆包智能体的查询方式，涵盖经济、股市、政策、科技等多个维度
+  const query = '近24小时重要经济事件 股市动态 政策变化 央行政策 宏观数据 上市公司 重大并购 融资事件 消费数据 国际贸易 市场波动 科技互联网';
   
   // 策略：先限定高质量媒体搜索
   let response = await client.advancedSearch(query, {
     searchType: 'web',
-    count: 50,
+    count: 30, // 优化：从50减少到30，减少token消耗
     timeRange: '1d',
     needSummary: true,
     needUrl: true,
@@ -140,7 +141,7 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
     console.log('High quality sources results insufficient, searching broader...');
     response = await client.advancedSearch(query, {
       searchType: 'web',
-      count: 50,
+      count: 30, // 优化：保持30条
       timeRange: '1d',
       needSummary: true,
       needUrl: true,
@@ -178,76 +179,49 @@ async function processAndRankNews(
     rankScore: item.rank_score || 0,
   }));
 
-  // 将新闻列表转换为文本格式
+  // 优化：缩短文本长度，减少 token 消耗
   const newsText = newsData.map((item, idx) => 
-    `【新闻 ${idx + 1}】
-标题：${item.originalTitle}
-来源：${item.source || '未知'}
-摘要：${item.summary.substring(0, 300)}
-内容：${item.content?.substring(0, 500) || ''}
-链接：${item.url}`
-  ).join('\n\n---\n\n');
+    `[${idx + 1}] 标题:${item.originalTitle}
+来源:${item.source||'未知'}
+摘要:${item.summary.substring(0,200)}
+链接:${item.url}`
+  ).join('\n');
 
-  const prompt = `请给我一份金融晚报，就按照近24小时发生的对经济和股市有较大影响的排名前20个需要关注的事件，重要度排序，含新闻标题，摘要和每个事件对应链接，尤其是科技和互联网领域的信息。
+  // 优化：简化 prompt，减少冗余说明
+  const prompt = `请对以下近24小时新闻进行分析，按对经济和股市的影响度排序，选出TOP 20重要事件。
 
-新闻列表：
 ${newsText}
 
-请对以上新闻进行以下处理：
-1. 评估每条新闻的重要性（对经济和股市的影响程度），综合考虑：
-   - 事件本身的重大程度
-   - 对市场的潜在影响
-   - 新闻来源的可信度（高质量媒体如：36kr、华尔街见闻、虎嗅、华尔街日报、经济学人等的权重更高）
-   - 是否涉及科技、互联网、AI等前沿领域
-2. 为每条新闻生成一个简练的AI总结标题（突出核心事件和影响）
-3. 用1-3句话生成AI摘要（简洁明了地说明事件及其影响）
-4. 按重要性从高到低排序，选出TOP 20
+要求：
+1. 按重要度排序（重大政策>股市动态>公司事件>一般新闻）
+2. 为每条新闻生成简练的AI标题（15-30字）
+3. 生成1-3句话的AI摘要
+4. 评分（1-10分，9-10为重大事件）
 
-只返回JSON格式，不要任何其他文字：
+返回JSON格式：
 {
   "news": [
     {
-      "index": 1,
-      "score": 9,
-      "aiTitle": "AI总结的标题",
-      "originalTitle": "原新闻标题",
-      "summary": "1-3句话的AI摘要",
-      "url": "原新闻链接"
+      "index": 序号,
+      "score": 评分,
+      "aiTitle": "AI标题",
+      "originalTitle": "原标题",
+      "summary": "摘要",
+      "url": "链接"
     }
   ]
-}
-
-评分标准（1-10分）：
-- 9-10分：重大政策变化、重大并购、知名大公司重大事件、对全球市场有重大影响、科技行业颠覆性变化
-- 7-8分：重要行业动态、重要公司业绩、重要监管变化、央行政策调整、市场重大波动
-- 5-6分：一般行业新闻、一般公司事件、市场趋势分析
-- 1-4分：常规新闻、影响较小、次要事件
-
-高质量媒体（优先）：
-中文：36kr、华尔街见闻、虎嗅、财新、界面新闻、第一财经
-英文：华尔街日报、经济学人、金融时报、彭博社、路透社
-
-AI标题要求：
-- 简练有力（15-30字）
-- 突出核心事件和影响
-- 使用专业金融术语
-
-AI摘要要求：
-- 1-3句话
-- 简洁明了
-- 说明事件及其对市场的影响
-- 提及关键数据和影响方向`;
+}`;
 
   try {
+    // 优化：简化 system prompt，减少 token 消耗
     const response = await llmClient.invoke([
       { 
         role: 'system', 
-        content: '你是一位资深的金融新闻编辑，擅长从大量新闻中筛选重要事件、生成精准的AI标题和摘要，能够快速判断新闻对金融市场的影响程度。你特别关注科技和互联网领域的重大事件。' 
+        content: '专业金融新闻编辑，擅长筛选重要事件、生成精准标题和摘要，快速判断对金融市场的影响。' 
       },
       { role: 'user', content: prompt }
     ], {
       temperature: 0.3,
-      model: 'doubao-seed-1-8-251228',
     });
 
     // 解析 LLM 返回的结果

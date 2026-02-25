@@ -218,17 +218,17 @@ Please extract the following information and return ONLY in JSON format:
     {
       "symbol": "Stock code or name (e.g., SPY, IVV, Nvidia, Apple)",
       "action": "buy/increase/decrease/sell/hold",
-      "percentage": percentage change or holding ratio (e.g., 7 for 7%),
+      "percentage": percentage change or holding ratio (e.g., 7 for 7%)",
       "date": "Date in YYYY-MM-DD format (e.g., 2025-12-31)",
       "value": holding value in millions USD (optional)
     }
   ]
 }
 
-注意事项 / Notes:
+Notes:
 1. action can be: buy, increase, decrease, sell, hold
 2. percentage can be change percentage or holding ratio
-3. If it's "latest holdings" information, set action to "hold", percentage to holding ratio
+3. If it's latest holdings information, set action to hold, percentage to holding ratio
 4. If information is unclear or uncertain, do not guess
 ${extraInstructions}
 
