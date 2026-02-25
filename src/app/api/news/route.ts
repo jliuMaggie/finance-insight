@@ -37,36 +37,40 @@ export async function GET(request: NextRequest) {
     // 获取查询参数
     const { searchParams } = new URL(request.url);
     const timeRange = searchParams.get('timeRange') || '24h';
+    const forceRefresh = searchParams.get('refresh') === 'true';
     
-    // 先尝试从 storage 读取指定时间段的缓存数据
-    const cachedData = await loadNewsData(timeRange);
-    
-    if (cachedData && cachedData.news && cachedData.news.length > 0) {
-      return NextResponse.json({
-        success: true,
-        news: cachedData.news,
-        lastUpdated: cachedData.lastUpdated,
-        fromCache: true,
-        timeRange: timeRange,
-      });
+    // 如果不是强制刷新，优先读取缓存
+    if (!forceRefresh) {
+      const cachedResult = await loadNewsData(timeRange);
+      
+      if (cachedResult && cachedResult.data && cachedResult.data.news && cachedResult.data.news.length > 0) {
+        return NextResponse.json({
+          success: true,
+          news: cachedResult.data.news,
+          lastUpdated: cachedResult.data.lastUpdated,
+          fromCache: true,
+          timeRange: timeRange,
+        });
+      }
     }
-
-    // 缓存不存在或过期，则进行搜索（默认使用24h）
+    
+    // 缓存不存在或强制刷新，进行搜索
+    console.log(`No cache found for ${timeRange}, fetching fresh news...`);
     const news = await fetchLatestNews();
     
-    // 保存到 storage（保存到多个时间段）
+    // 保存到 storage（按当前整点）
     const dataToSave = {
       news,
       lastUpdated: new Date().toISOString(),
     };
-    await saveNewsData(dataToSave, '24h');
+    await saveNewsData(dataToSave, timeRange);
     
     return NextResponse.json({
       success: true,
       news,
       lastUpdated: new Date().toISOString(),
       fromCache: false,
-      timeRange: '24h',
+      timeRange: timeRange,
     });
   } catch (error) {
     console.error('Error fetching news:', error);
