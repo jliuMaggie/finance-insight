@@ -8,7 +8,7 @@ DEPLOY_RUN_PORT="${DEPLOY_RUN_PORT:-$PORT}"
 cd "${COZE_WORKSPACE_PATH}"
 
 # 在部署时设置环境变量（避免只读文件系统问题）
-if [ -n "$ARK_API_KEY" ] || [ -n "$COZE_BUCKET_ENDPOINT_URL" ] || [ -n "$COZE_BUCKET_NAME" ]; then
+if [ -n "${ARK_API_KEY:-}" ] || [ -n "${COZE_BUCKET_ENDPOINT_URL:-}" ] || [ -n "${COZE_BUCKET_NAME:-}" ]; then
   echo "Setting environment variables for deploy..."
   export ARK_API_KEY="${ARK_API_KEY:-}"
   export COZE_BUCKET_ENDPOINT_URL="${COZE_BUCKET_ENDPOINT_URL:-}"
