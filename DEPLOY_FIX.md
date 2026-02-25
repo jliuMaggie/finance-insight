@@ -23,7 +23,24 @@ deps = ["git"]
 env = ["ARK_API_KEY", "COZE_BUCKET_ENDPOINT_URL", "COZE_BUCKET_NAME"]
 ```
 
-### 2. 修改 `scripts/start.sh`
+### 2. 修改 `scripts/build.sh`（构建阶段）
+
+在构建时设置环境变量：
+
+```bash
+# 在构建时设置环境变量（避免只读文件系统问题）
+if [ -n "$ARK_API_KEY" ] || [ -n "$COZE_BUCKET_ENDPOINT_URL" ] || [ -n "$COZE_BUCKET_NAME" ]; then
+  echo "Setting environment variables for build..."
+  export ARK_API_KEY="${ARK_API_KEY:-}"
+  export COZE_BUCKET_ENDPOINT_URL="${COZE_BUCKET_ENDPOINT_URL:-}"
+  export COZE_BUCKET_NAME="${COZE_BUCKET_NAME:-}"
+  echo "Environment variables set successfully"
+fi
+```
+
+**重要说明**：Next.js 在构建阶段需要环境变量来生成静态页面和 API 路由。
+
+### 3. 修改 `scripts/start.sh`（运行阶段）
 
 添加了环境变量设置逻辑（避免只读文件系统问题）：
 
@@ -108,6 +125,22 @@ COZE_BUCKET_NAME: ✓ 已配置
    - 部署环境是**只读文件系统**，无法创建或修改文件
    - 环境变量需要通过系统传递，`.env` 文件无法使用
 
+### 为什么构建和运行两个阶段都需要环境变量？
+
+Next.js 的生命周期：
+1. **构建阶段**（`pnpm run build`）：
+   - 编译 TypeScript
+   - 生成静态页面
+   - 预渲染 API 路由
+   - **此时需要环境变量**
+
+2. **运行阶段**（`pnpm run start`）：
+   - 启动生产服务器
+   - 处理用户请求
+   - **此时也需要环境变量**
+
+因此，我们需要在两个阶段都设置环境变量。
+
 ### 修复原理
 
 1. 在 `.coze` 文件中声明需要的环境变量
@@ -130,7 +163,15 @@ COZE_BUCKET_NAME: ✓ 已配置
 
 部署时查看以下日志：
 
-**✅ 成功的标志**：
+**✅ 构建阶段成功标志**：
+```
+Setting environment variables for build...
+Environment variables set successfully
+Building the project...
+✓ Compiled successfully
+```
+
+**✅ 运行阶段成功标志**：
 ```
 Setting environment variables for deploy...
 Environment variables set successfully
