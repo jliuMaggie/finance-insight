@@ -25,18 +25,20 @@ env = ["ARK_API_KEY", "COZE_BUCKET_ENDPOINT_URL", "COZE_BUCKET_NAME"]
 
 ### 2. 修改 `scripts/start.sh`
 
-添加了动态创建 `.env` 文件的逻辑：
+添加了环境变量设置逻辑（避免只读文件系统问题）：
 
 ```bash
-# 在部署时创建临时的 .env 文件
+# 在部署时设置环境变量（避免只读文件系统问题）
 if [ -n "$ARK_API_KEY" ] || [ -n "$COZE_BUCKET_ENDPOINT_URL" ] || [ -n "$COZE_BUCKET_NAME" ]; then
-  cat > .env << EOF
-ARK_API_KEY=${ARK_API_KEY:-}
-COZE_BUCKET_ENDPOINT_URL=${COZE_BUCKET_ENDPOINT_URL:-}
-COZE_BUCKET_NAME=${COZE_BUCKET_NAME:-}
-EOF
-  echo ".env file created successfully"
+  echo "Setting environment variables for deploy..."
+  export ARK_API_KEY="${ARK_API_KEY:-}"
+  export COZE_BUCKET_ENDPOINT_URL="${COZE_BUCKET_ENDPOINT_URL:-}"
+  export COZE_BUCKET_NAME="${COZE_BUCKET_NAME:-}"
+  echo "Environment variables set successfully"
 fi
+```
+
+**重要说明**：部署环境是只读文件系统，不能创建文件，因此改为直接导出环境变量。
 ```
 
 ## 需要您操作
@@ -64,8 +66,9 @@ fi
 部署完成后，查看部署日志，应该看到：
 
 ```
-Creating .env file from environment variables...
-.env file created successfully
+Setting environment variables for deploy...
+Environment variables set successfully
+Starting HTTP service on port 5000 for deploy...
 ```
 
 并且环境变量配置验证应该显示：
@@ -101,14 +104,27 @@ COZE_BUCKET_NAME: ✓ 已配置
 ### 为什么开发环境能工作，部署环境不行？
 
 1. **开发环境**：`.env` 文件会被 Next.js 自动加载
-2. **部署环境**：环境变量需要通过系统传递，`.env` 文件默认不会被加载
+2. **部署环境**：
+   - 部署环境是**只读文件系统**，无法创建或修改文件
+   - 环境变量需要通过系统传递，`.env` 文件无法使用
 
 ### 修复原理
 
-1. 在启动脚本中检测环境变量
-2. 如果环境变量存在，动态创建 `.env` 文件
-3. Next.js 启动时会读取 `.env` 文件
-4. 这样既能使用环境变量，又能确保 Next.js 能读取到配置
+1. 在 `.coze` 文件中声明需要的环境变量
+2. 在启动脚本中直接导出环境变量（不创建文件）
+3. Node.js 进程会继承这些环境变量
+4. Next.js 通过 `process.env` 读取环境变量
+
+### 只读文件系统限制
+
+部署时的错误：
+```
+./scripts/start.sh: line 13: .env: Read-only file system
+```
+
+解决方案：
+- ✅ 使用 `export` 命令设置环境变量
+- ❌ 尝试创建 `.env` 文件（会被拒绝）
 
 ## 部署日志检查
 
@@ -116,8 +132,8 @@ COZE_BUCKET_NAME: ✓ 已配置
 
 **✅ 成功的标志**：
 ```
-Creating .env file from environment variables...
-.env file created successfully
+Setting environment variables for deploy...
+Environment variables set successfully
 Starting HTTP service on port 5000 for deploy...
 ```
 
@@ -125,6 +141,11 @@ Starting HTTP service on port 5000 for deploy...
 ```
 配置验证失败:
 - 缺少 ARK_API_KEY 环境变量（豆包 API key）
+```
+
+**⚠️ 只读文件系统错误（已修复）**：
+```
+./scripts/start.sh: line 13: .env: Read-only file system
 ```
 
 ## 下一步
