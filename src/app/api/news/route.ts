@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SearchClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { SearchClient, LLMClient, HeaderUtils } from 'coze-coding-dev-sdk';
 import { loadNewsData, saveNewsData } from '@/lib/storage';
+import { getSDKConfig } from '@/lib/config';
 
 interface NewsItem {
   id: string;
@@ -118,7 +119,7 @@ export async function POST() {
 }
 
 async function fetchLatestNews(): Promise<NewsItem[]> {
-  const config = new Config();
+  const config = getSDKConfig();
   const client = new SearchClient(config);
   
   // 优化：使用更全面的金融新闻关键词，避免过度偏向AI相关新闻
@@ -163,7 +164,7 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
 async function processAndRankNews(
   webItems: any[]
 ): Promise<NewsItem[]> {
-  const config = new Config();
+  const config = getSDKConfig();
   const llmClient = new (await import('coze-coding-dev-sdk')).LLMClient(config);
   
   // 提取新闻信息

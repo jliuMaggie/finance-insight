@@ -3,6 +3,7 @@ import { SearchClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { LLMClient } from 'coze-coding-dev-sdk';
 import { loadHoldingsData, saveHoldingsData } from '@/lib/storage';
 import { INVESTORS } from '@/lib/investors';
+import { getSDKConfig } from '@/lib/config';
 
 interface HoldingChange {
   investor: string;
@@ -92,7 +93,7 @@ export async function POST() {
 }
 
 async function fetchHoldingsData(forceRefresh = false): Promise<HoldingChange[]> {
-  const config = new Config();
+  const config = getSDKConfig();
   const client = new SearchClient(config);
   const llmClient = new LLMClient(config);
   
