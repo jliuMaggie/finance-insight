@@ -146,92 +146,110 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
   const config = new Config();
   const client = new SearchClient(config);
   
-  // 多轮搜索策略：使用更精确的查询
-  const searchQueries = [
-    // 36氪
-    {
-      query: '36氪 最新 财经 科技 互联网',
-      priority: 1,
-    },
-    // 华尔街见闻
-    {
-      query: '华尔街见闻 全球财经 最新',
-      priority: 1,
-    },
-    // 虎嗅
-    {
-      query: '虎嗅网 科技商业 最新',
-      priority: 1,
-    },
-    // 财新
-    {
-      query: '财新网 财经新闻 最新',
-      priority: 1,
-    },
-    // 界面新闻
-    {
-      query: '界面新闻 财经 最新',
-      priority: 1,
-    },
-    // 彭博社（英文）
-    {
-      query: 'Bloomberg news financial latest',
-      priority: 2,
-    },
-    // 路透社（英文）
-    {
-      query: 'Reuters financial news latest',
-      priority: 2,
-    },
-    // 金融时报（英文）
-    {
-      query: 'Financial Times news latest',
-      priority: 2,
-    },
-    // CNBC（英文）
-    {
-      query: 'CNBC news financial markets',
-      priority: 2,
-    },
-    // 广泛搜索（补充）
-    {
-      query: '重要财经新闻 市场动态 股市 经济 AI 互联网',
-      priority: 3,
-    },
+  // 高质量媒体列表（优先搜索）
+  const highQualitySources = [
+    '36氪', '华尔街见闻', '虎嗅', '第一财经', '财新', '界面新闻', '每日经济新闻', '雪球',
+    '澎湃新闻', '证券时报', '中国证券报', '21世纪经济报道',
   ];
 
   // 收集所有搜索结果
   const allWebItems: any[] = [];
   const seenUrls = new Set<string>();
 
-  // 执行多轮搜索
-  for (let i = 0; i < searchQueries.length; i++) {
-    const { query, priority } = searchQueries[i];
-    console.log(`Round ${i + 1} (priority ${priority}) search: ${query.substring(0, 50)}...`);
-
+  // 第一步：分别搜索每个高质量媒体（提高命中率）
+  console.log('Step 1: Searching high-quality financial media...');
+  for (const source of highQualitySources) {
+    const query = `${source} 财经新闻 股市 科技 互联网 AI`;
+    console.log(`  Searching: ${source}`);
+    
     try {
       const response = await client.advancedSearch(query, {
         searchType: 'web',
-        count: 50,
-        timeRange: '3d',
+        count: 30, // 每个媒体搜索30条
+        timeRange: '2d',
         needSummary: true,
         needUrl: true,
         needContent: true,
       });
 
       if (response.web_items && response.web_items.length > 0) {
-        // 去重
         for (const item of response.web_items) {
           if (item.url && !seenUrls.has(item.url)) {
-            item.priority = priority;
+            item.priority = 1; // 最高优先级
             allWebItems.push(item);
             seenUrls.add(item.url);
           }
         }
-        console.log(`Round ${i + 1}: Found ${response.web_items.length} results, ${allWebItems.length} unique total`);
+        console.log(`    Found ${response.web_items.length} results, total ${allWebItems.length}`);
       }
     } catch (error) {
-      console.error(`Round ${i + 1} search error:`, error);
+      console.error(`    Error searching ${source}:`, error);
+    }
+  }
+  console.log(`Step 1 complete: ${allWebItems.length} total results`);
+
+  // 第二步：如果结果不足，补充搜索英文媒体
+  if (allWebItems.length < 80) {
+    console.log('Step 2: Supplementing with English media search...');
+    const englishSources = ['彭博', '路透', '金融时报', 'CNBC'];
+    
+    for (const source of englishSources) {
+      const query = `${source} 财经 新闻 市场 股票`;
+      console.log(`  Searching: ${source}`);
+      
+      try {
+        const response = await client.advancedSearch(query, {
+          searchType: 'web',
+          count: 30,
+          timeRange: '3d',
+          needSummary: true,
+          needUrl: true,
+          needContent: true,
+        });
+
+        if (response.web_items && response.web_items.length > 0) {
+          for (const item of response.web_items) {
+            if (item.url && !seenUrls.has(item.url)) {
+              item.priority = 2;
+              allWebItems.push(item);
+              seenUrls.add(item.url);
+            }
+          }
+          console.log(`    Found ${response.web_items.length} results, total ${allWebItems.length}`);
+        }
+      } catch (error) {
+        console.error(`    Error searching ${source}:`, error);
+      }
+    }
+  }
+
+  // 第三步：如果结果仍不足，广泛搜索
+  if (allWebItems.length < 100) {
+    console.log('Step 3: Broad search for more content...');
+    const broadQuery = '重要财经新闻 市场动态 股市 经济 AI 互联网 科技';
+    
+    try {
+      const response = await client.advancedSearch(broadQuery, {
+        searchType: 'web',
+        count: 50,
+        timeRange: '2d',
+        needSummary: true,
+        needUrl: true,
+        needContent: true,
+      });
+
+      if (response.web_items && response.web_items.length > 0) {
+        for (const item of response.web_items) {
+          if (item.url && !seenUrls.has(item.url)) {
+            item.priority = 3;
+            allWebItems.push(item);
+            seenUrls.add(item.url);
+          }
+        }
+        console.log(`    Found ${response.web_items.length} results, total ${allWebItems.length}`);
+      }
+    } catch (error) {
+      console.error('    Error in broad search:', error);
     }
   }
 
@@ -244,10 +262,10 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
   
   // 统计高质量媒体新闻数量
   let highQualityCount = 0;
-  const highQualitySources = ['36kr', '36氪', '华尔街见闻', '虎嗅', '财新', '界面新闻', '彭博', 'Bloomberg', '路透', 'Reuters', '金融时报', 'CNBC'];
+  const allSources = [...highQualitySources, '彭博', '路透', '金融时报', 'CNBC'];
   allWebItems.forEach(item => {
     const source = (item.site_name || '').toLowerCase();
-    if (highQualitySources.some(name => source.includes(name.toLowerCase()))) {
+    if (allSources.some(name => source.includes(name.toLowerCase()))) {
       highQualityCount++;
     }
   });
@@ -280,8 +298,9 @@ async function processAndRankNews(
 
   // 定义高质量媒体名称列表（用于LLM识别）
   const highQualitySources = [
-    '36氪', '36kr', '华尔街见闻', '虎嗅', '财新', '界面新闻', '第一财经', '澎湃新闻', '证券时报', '中国证券报', '21世纪经济报道',
-    '爱范儿', '极客公园',
+    '虎嗅', '华尔街见闻', '36氪', '雪球', '第一财经', '财新', '界面新闻', '每日经济新闻', // 今日头条官方账号
+    '36kr', 'huxiu', 'caixin', 'jiemian', 'yicai', 'nbd',
+    '爱范儿', '极客公园', '澎湃新闻', '证券时报',
     '华尔街日报', '经济学人', '金融时报', '彭博', 'Bloomberg', '路透', 'Reuters', 'CNBC', '福布斯', 'Forbes',
     'TechCrunch', 'The Verge', 'Wired', 'VentureBeat', 'Ars Technica'
   ];
@@ -309,7 +328,7 @@ async function processAndRankNews(
 链接：${item.url}`;
   }).join('\n\n---\n\n');
 
-  const prompt = `请给我一份金融晚报，就按照近72小时发生的对经济和股市有较大影响的排名前20个需要关注的事件，重要度排序，含新闻标题，摘要和每个事件对应链接，尤其是科技和互联网领域的信息。
+  const prompt = `请给我一份金融晚报，就按照近48小时发生的对经济和股市有较大影响的排名前20个需要关注的事件，重要度排序，含新闻标题，摘要和每个事件对应链接，尤其是科技和互联网领域的信息。
 
 新闻列表：
 ${newsText}
@@ -317,13 +336,15 @@ ${newsText}
 **关键筛选规则（必须严格遵守）：**
 
 1. 优先级1（必须执行）：
-   - TOP 20 新闻中，至少应有 12-15 条来自"来源质量：✓ 高质量媒体"的新闻
-   - 只有当高质量媒体新闻不足12条时，才考虑"来源质量：✗ 其他来源"的新闻
-   - 高质量媒体包括：36氪、华尔街见闻、虎嗅、财新、界面新闻、第一财经、澎湃新闻、证券时报、华尔街日报、经济学人、金融时报、彭博社、路透社、CNBC、TechCrunch等
+   - TOP 20 新闻中，优先选择"来源质量：✓ 高质量媒体"的新闻
+   - **最高优先级**：来自今日头条财经官方账号（虎嗅APP、华尔街见闻、36氪财经、雪球基金、第一财经、财新网、界面新闻、每日经济新闻）发布的新闻
+   - 这些官方账号发布的新闻通常具有较高的权威性和专业性
+   - 即使其他媒体的内容看起来很重要，也应优先保证今日头条官方账号新闻的覆盖率
 
 2. 评估每条新闻的重要性（综合考虑来源质量和事件重大程度）：
-   - 高质量媒体 + 重大事件（9-10分）：政策变化、重大并购、大公司重大事件、AI突破、科技颠覆性变化
-   - 高质量媒体 + 重要事件（7-8分）：行业动态、公司业绩、监管变化、市场波动
+   - 今日头条官方账号 + 重大事件（9-10分）：政策变化、重大并购、大公司重大事件、AI突破、科技颠覆性变化
+   - 其他高质量媒体 + 重大事件（8-9分）：行业动态、公司业绩、监管变化、市场波动
+   - 今日头条官方账号 + 重要事件（7-8分）：内容来自官方账号，重要性一般
    - 其他来源 + 重大事件（5-6分）：内容重要但来源不够权威
    - 其他来源 + 一般事件（1-4分）：普通新闻，应尽量避免选择
 
@@ -334,8 +355,8 @@ ${newsText}
 5. 按重要性从高到低排序，选出TOP 20
 
 **特别强调：**
-- 如果有标记"来源质量：✓ 高质量媒体"的新闻，必须优先选择它们
-- 即使非高质量媒体的内容看起来很重要，也应优先保证高质量媒体的覆盖率
+- 优先选择标记"来源质量：✓ 高质量媒体"的新闻
+- 特别关注来自今日头条财经官方账号的新闻（虎嗅、华尔街见闻、36氪、雪球、第一财经、财新、界面、每日经济新闻）
 - 只有当高质量媒体新闻确实不够重要或不够多时，才选择其他来源的新闻
 
 只返回JSON格式，不要任何其他文字：
@@ -353,10 +374,14 @@ ${newsText}
 }
 
 评分标准（1-10分，优先考虑来源质量）：
-- 9-10分：高质量媒体 + 重大事件（首选）
-- 7-8分：高质量媒体 + 重要事件（次选）
+- 9-10分：今日头条官方账号 + 重大事件（首选）
+- 8-9分：其他高质量媒体 + 重大事件（次选）
+- 7-8分：今日头条官方账号 + 重要事件
 - 5-6分：其他来源 + 重大事件（补充）
 - 1-4分：其他来源 + 一般事件（最后选择，尽量避免）
+
+今日头条财经官方账号（最高优先级）：
+- 虎嗅APP、华尔街见闻、36氪财经、雪球基金、第一财经、财新网、界面新闻、每日经济新闻
 
 AI标题要求：
 - 简练有力（15-30字）
@@ -373,7 +398,7 @@ AI摘要要求：
     const response = await llmClient.invoke([
       { 
         role: 'system', 
-        content: '你是一位资深的金融新闻编辑，擅长从大量新闻中筛选重要事件、生成精准的AI标题和摘要，能够快速判断新闻对金融市场的影响程度。你特别关注科技和互联网领域的重大事件，并且非常重视新闻来源的质量和可信度。你始终优先选择来自权威媒体（如36kr、华尔街见闻、财新、彭博社、路透社等）的新闻，即使其他媒体的内容看起来很重要。' 
+        content: '你是一位资深的金融新闻编辑，擅长从大量新闻中筛选重要事件、生成精准的AI标题和摘要，能够快速判断新闻对金融市场的影响程度。你特别关注科技和互联网领域的重大事件，并且非常重视新闻来源的质量和可信度。你始终优先选择来自今日头条财经官方账号（虎嗅APP、华尔街见闻、36氪财经、雪球基金、第一财经、财新网、界面新闻、每日经济新闻）和其他权威媒体的新闻。' 
       },
       { role: 'user', content: prompt }
     ], {
