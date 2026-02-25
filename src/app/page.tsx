@@ -14,11 +14,13 @@ import { cn } from '@/lib/utils';
 interface NewsItem {
   id: string;
   rank: number;
-  title: string;
-  summary: string;
+  aiTitle: string; // AI总结的标题
+  originalTitle: string; // 原新闻标题
+  summary: string; // 1-3句话的AI摘要
   url: string;
   publishTime?: string;
   source?: string;
+  importanceScore?: number;
 }
 
 interface HoldingChange {
@@ -288,22 +290,33 @@ export default function FinanceInsightPage() {
                                 {item.rank}
                               </div>
                               <div className="flex-1 min-w-0">
+                                {/* AI总结的标题（主要显示） */}
                                 <div className="flex items-start justify-between gap-4 mb-2">
-                                  <h3 className="font-semibold text-base line-clamp-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                                    {item.title}
+                                  <h3 className="font-semibold text-lg line-clamp-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                    {item.aiTitle}
                                   </h3>
                                   <a
                                     href={item.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex-shrink-0"
+                                    title="查看原文"
                                   >
                                     <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400" />
                                   </a>
                                 </div>
-                                <p className="text-sm text-muted-foreground mb-3 line-clamp-3">
+                                
+                                {/* 原新闻标题（次要显示） */}
+                                <div className="mb-3">
+                                  <p className="text-xs text-muted-foreground mb-1">原标题：{item.originalTitle}</p>
+                                </div>
+                                
+                                {/* AI摘要 */}
+                                <p className="text-sm text-foreground mb-3 line-clamp-3 leading-relaxed">
                                   {item.summary}
                                 </p>
+                                
+                                {/* 来源和时间 */}
                                 <div className="flex items-center gap-3 flex-wrap">
                                   {item.source && (
                                     <Badge variant="secondary" className="text-xs">
@@ -314,6 +327,19 @@ export default function FinanceInsightPage() {
                                     <Badge variant="outline" className="text-xs gap-1">
                                       <Calendar className="h-3 w-3" />
                                       {item.publishTime}
+                                    </Badge>
+                                  )}
+                                  {item.importanceScore && (
+                                    <Badge 
+                                      variant="outline" 
+                                      className={cn(
+                                        "text-xs gap-1",
+                                        item.importanceScore >= 8 ? "border-red-500 text-red-600 dark:text-red-400" :
+                                        item.importanceScore >= 6 ? "border-orange-500 text-orange-600 dark:text-orange-400" :
+                                        "border-blue-500 text-blue-600 dark:text-blue-400"
+                                      )}
+                                    >
+                                      重要度: {item.importanceScore}/10
                                     </Badge>
                                   )}
                                 </div>
@@ -459,7 +485,7 @@ export default function FinanceInsightPage() {
                       <option value="">请选择要分析的新闻事件</option>
                       {news.slice(0, 10).map((item) => (
                         <option key={item.id} value={item.id}>
-                          {item.rank}. {item.title.substring(0, 80)}...
+                          {item.rank}. {item.aiTitle.substring(0, 80)}...
                         </option>
                       ))}
                     </select>
