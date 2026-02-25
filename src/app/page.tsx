@@ -408,61 +408,61 @@ export default function FinanceInsightPage() {
                     <p className="text-muted-foreground">暂无持仓数据</p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                     {INVESTORS.map((investorInfo) => {
                       const investorHoldings = holdings
                         .filter(h => h.investor === investorInfo.name)
                         // 按时间从近到远排序
                         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-                      if (investorHoldings.length === 0) return null;
-
                       return (
-                        <Card key={investorInfo.name} className="overflow-hidden">
+                        <Card key={investorInfo.name} className="overflow-hidden flex flex-col h-full">
                           {/* 投资者头部信息 */}
-                          <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+                          <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 pb-4">
                             <div className="space-y-3">
                               <div className="flex items-start justify-between">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                   {investorInfo.type === 'institution' ? (
-                                    <Building2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                                    <Building2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
                                   ) : (
-                                    <User className="h-6 w-6 text-green-600 dark:text-green-400" />
+                                    <User className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
                                   )}
                                   <div>
-                                    <CardTitle className="text-xl">{investorInfo.name}</CardTitle>
+                                    <CardTitle className="text-lg leading-tight">{investorInfo.name}</CardTitle>
                                     <Badge 
                                       variant={investorInfo.type === 'institution' ? 'default' : 'secondary'}
-                                      className="mt-1"
+                                      className="mt-1.5 text-xs"
                                     >
                                       {investorInfo.type === 'institution' ? '投资机构' : '个人投资者'}
                                     </Badge>
                                   </div>
                                 </div>
-                                <Badge variant="outline" className="gap-1">
-                                  <Star className="h-3 w-3" />
-                                  {investorHoldings.length} 条变动
-                                </Badge>
+                                {investorHoldings.length > 0 && (
+                                  <Badge variant="outline" className="gap-1 text-xs">
+                                    <Star className="h-3 w-3" />
+                                    {investorHoldings.length} 条
+                                  </Badge>
+                                )}
                               </div>
 
-                              {/* 投资者详细信息 */}
+                              {/* 投资者详细信息 - 紧凑版 */}
                               <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                                <div className="flex items-start gap-2">
-                                  <Info className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                                  <p className="text-sm text-muted-foreground leading-relaxed">
+                                <div className="flex items-start gap-1.5">
+                                  <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
                                     {investorInfo.description}
                                   </p>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 mt-3">
-                                  <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2.5">
-                                    <div className="text-xs text-muted-foreground mb-1">投资风格</div>
-                                    <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                  <div className="bg-white/50 dark:bg-slate-800/50 rounded-md p-2">
+                                    <div className="text-[10px] text-muted-foreground mb-0.5">投资风格</div>
+                                    <div className="text-xs font-medium text-blue-600 dark:text-blue-400 line-clamp-1">
                                       {investorInfo.investmentStyle}
                                     </div>
                                   </div>
-                                  <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2.5">
-                                    <div className="text-xs text-muted-foreground mb-1">持仓特点</div>
-                                    <div className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                                  <div className="bg-white/50 dark:bg-slate-800/50 rounded-md p-2">
+                                    <div className="text-[10px] text-muted-foreground mb-0.5">持仓特点</div>
+                                    <div className="text-xs font-medium text-purple-600 dark:text-purple-400 line-clamp-1">
                                       {investorInfo.holdingRatio || '动态调整'}
                                     </div>
                                   </div>
@@ -472,51 +472,60 @@ export default function FinanceInsightPage() {
                           </CardHeader>
 
                           {/* 持仓变动列表 */}
-                          <CardContent className="pt-4">
-                            <ScrollArea className="h-[400px]">
-                              <div className="space-y-3">
-                                {investorHoldings.map((holding, idx) => (
-                                  <div
-                                    key={idx}
-                                    className="flex items-center justify-between p-4 rounded-lg border bg-background hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                                  >
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <span className="font-semibold text-base">{holding.symbol}</span>
-                                        <Badge
-                                          variant={holding.action === '买入' || holding.action === '增持' ? 'default' : 'destructive'}
-                                          className="text-xs font-medium"
-                                        >
-                                          {holding.action}
-                                        </Badge>
-                                      </div>
-                                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                        <Calendar className="h-3.5 w-3.5" />
-                                        <span>{holding.date}</span>
-                                        {idx === 0 && (
-                                          <Badge variant="outline" className="text-xs gap-1 ml-2">
-                                            最新
+                          <CardContent className="pt-4 flex-1 flex flex-col">
+                            {investorHoldings.length === 0 ? (
+                              <div className="flex-1 flex items-center justify-center py-8">
+                                <div className="text-center">
+                                  <DollarSign className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
+                                  <p className="text-sm text-muted-foreground">暂无持仓数据</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <ScrollArea className="flex-1 h-[280px]">
+                                <div className="space-y-2 pr-2">
+                                  {investorHoldings.map((holding, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                                    >
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className="font-semibold text-sm">{holding.symbol}</span>
+                                          <Badge
+                                            variant={holding.action === '买入' || holding.action === '增持' ? 'default' : 'destructive'}
+                                            className="text-[10px] h-5 px-1.5 font-medium"
+                                          >
+                                            {holding.action}
                                           </Badge>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                          <Calendar className="h-3 w-3 flex-shrink-0" />
+                                          <span className="truncate">{holding.date}</span>
+                                          {idx === 0 && (
+                                            <Badge variant="outline" className="text-[10px] gap-0.5 ml-auto">
+                                              最新
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="text-right ml-3 flex-shrink-0">
+                                        <div className={cn(
+                                          "font-bold text-xl leading-none",
+                                          (holding.action === '买入' || holding.action === '增持') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                                        )}>
+                                          {holding.percentage > 0 ? '+' : ''}{holding.percentage}%
+                                        </div>
+                                        {holding.value && (
+                                          <div className="text-[10px] text-muted-foreground font-medium mt-1">
+                                            ${holding.value}M
+                                          </div>
                                         )}
                                       </div>
                                     </div>
-                                    <div className="text-right ml-4">
-                                      <div className={cn(
-                                        "font-bold text-2xl",
-                                        (holding.action === '买入' || holding.action === '增持') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                                      )}>
-                                        {holding.percentage > 0 ? '+' : ''}{holding.percentage}%
-                                      </div>
-                                      {holding.value && (
-                                        <div className="text-sm text-muted-foreground font-medium">
-                                          ${holding.value}M
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </ScrollArea>
+                                  ))}
+                                </div>
+                              </ScrollArea>
+                            )}
                           </CardContent>
                         </Card>
                       );
