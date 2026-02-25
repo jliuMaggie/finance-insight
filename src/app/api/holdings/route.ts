@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SearchClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { LLMClient } from 'coze-coding-dev-sdk';
 import { loadHoldingsData, saveHoldingsData } from '@/lib/storage';
+import { INVESTORS } from '@/lib/investors';
 
 interface HoldingChange {
   investor: string;
@@ -12,13 +13,8 @@ interface HoldingChange {
   value?: number;
 }
 
-const INVESTORS = [
-  '沃伦·巴菲特',
-  '段永平',
-  '李录',
-  '但斌',
-  '詹姆斯·西蒙斯'
-];
+// 从配置文件中获取投资者列表
+const INVESTORS_LIST = INVESTORS.map(inv => inv.name);
 
 export async function GET() {
   try {
@@ -103,7 +99,7 @@ async function fetchHoldingsData(forceRefresh = false): Promise<HoldingChange[]>
   const allHoldings: HoldingChange[] = [];
   
   // 为每个投资者搜索持仓变动信息
-  for (const investor of INVESTORS) {
+  for (const investor of INVESTORS_LIST) {
     try {
       const holdings = await fetchInvestorHoldings(investor, client, llmClient);
       allHoldings.push(...holdings);

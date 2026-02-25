@@ -8,8 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { RefreshCw, TrendingUp, DollarSign, Brain, ExternalLink, Calendar, MessageSquare, User, Send } from 'lucide-react';
+import { RefreshCw, TrendingUp, DollarSign, Brain, ExternalLink, Calendar, MessageSquare, User, Send, Building2, Info, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { INVESTORS, getInvestorInfo, Investor } from '@/lib/investors';
 
 interface NewsItem {
   id: string;
@@ -54,13 +55,8 @@ export default function FinanceInsightPage() {
   const [aiResponse, setAiResponse] = useState<AIResponse>({ content: '', isStreaming: false });
   const [selectedNewsId, setSelectedNewsId] = useState<string | null>(null);
 
-  const investors = [
-    '沃伦·巴菲特',
-    '段永平',
-    '李录',
-    '但斌',
-    '詹姆斯·西蒙斯'
-  ];
+  // 从配置文件中获取投资者列表
+  const investors = INVESTORS.map(inv => inv.name);
 
   // 加载新闻数据（优先使用前端缓存）
   useEffect(() => {
@@ -383,7 +379,7 @@ export default function FinanceInsightPage() {
                       投资大佬持仓变动
                     </CardTitle>
                     <CardDescription>
-                      巴菲特、段永平、李录、但斌、西蒙斯等投资大师近期持仓变化
+                      {INVESTORS.length}位投资大师（含个人与机构）近期持仓变化
                     </CardDescription>
                   </div>
                   <Button
@@ -412,51 +408,107 @@ export default function FinanceInsightPage() {
                     <p className="text-muted-foreground">暂无持仓数据</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {investors.map((investor) => {
-                      const investorHoldings = holdings.filter(h => h.investor === investor);
+                  <div className="space-y-6">
+                    {INVESTORS.map((investorInfo) => {
+                      const investorHoldings = holdings
+                        .filter(h => h.investor === investorInfo.name)
+                        // 按时间从近到远排序
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
                       if (investorHoldings.length === 0) return null;
 
                       return (
-                        <Card key={investor}>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center gap-3">
-                              <User className="h-5 w-5 text-green-600 dark:text-green-400" />
-                              <CardTitle className="text-lg">{investor}</CardTitle>
-                              <Badge variant="secondary">{investorHoldings.length} 条变动</Badge>
+                        <Card key={investorInfo.name} className="overflow-hidden">
+                          {/* 投资者头部信息 */}
+                          <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-3">
+                                  {investorInfo.type === 'institution' ? (
+                                    <Building2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                                  ) : (
+                                    <User className="h-6 w-6 text-green-600 dark:text-green-400" />
+                                  )}
+                                  <div>
+                                    <CardTitle className="text-xl">{investorInfo.name}</CardTitle>
+                                    <Badge 
+                                      variant={investorInfo.type === 'institution' ? 'default' : 'secondary'}
+                                      className="mt-1"
+                                    >
+                                      {investorInfo.type === 'institution' ? '投资机构' : '个人投资者'}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <Badge variant="outline" className="gap-1">
+                                  <Star className="h-3 w-3" />
+                                  {investorHoldings.length} 条变动
+                                </Badge>
+                              </div>
+
+                              {/* 投资者详细信息 */}
+                              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                <div className="flex items-start gap-2">
+                                  <Info className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                  <p className="text-sm text-muted-foreground leading-relaxed">
+                                    {investorInfo.description}
+                                  </p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 mt-3">
+                                  <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2.5">
+                                    <div className="text-xs text-muted-foreground mb-1">投资风格</div>
+                                    <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                                      {investorInfo.investmentStyle}
+                                    </div>
+                                  </div>
+                                  <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2.5">
+                                    <div className="text-xs text-muted-foreground mb-1">持仓特点</div>
+                                    <div className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                                      {investorInfo.holdingRatio || '动态调整'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </CardHeader>
-                          <CardContent>
-                            <ScrollArea className="h-[300px]">
+
+                          {/* 持仓变动列表 */}
+                          <CardContent className="pt-4">
+                            <ScrollArea className="h-[400px]">
                               <div className="space-y-3">
                                 {investorHoldings.map((holding, idx) => (
                                   <div
                                     key={idx}
-                                    className="flex items-center justify-between p-3 rounded-lg border bg-background"
+                                    className="flex items-center justify-between p-4 rounded-lg border bg-background hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                                   >
                                     <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-semibold">{holding.symbol}</span>
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <span className="font-semibold text-base">{holding.symbol}</span>
                                         <Badge
                                           variant={holding.action === '买入' || holding.action === '增持' ? 'default' : 'destructive'}
-                                          className="text-xs"
+                                          className="text-xs font-medium"
                                         >
                                           {holding.action}
                                         </Badge>
                                       </div>
-                                      <div className="text-xs text-muted-foreground">
-                                        {holding.date}
+                                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Calendar className="h-3.5 w-3.5" />
+                                        <span>{holding.date}</span>
+                                        {idx === 0 && (
+                                          <Badge variant="outline" className="text-xs gap-1 ml-2">
+                                            最新
+                                          </Badge>
+                                        )}
                                       </div>
                                     </div>
-                                    <div className="text-right">
+                                    <div className="text-right ml-4">
                                       <div className={cn(
-                                        "font-bold text-lg",
+                                        "font-bold text-2xl",
                                         (holding.action === '买入' || holding.action === '增持') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                                       )}>
                                         {holding.percentage > 0 ? '+' : ''}{holding.percentage}%
                                       </div>
                                       {holding.value && (
-                                        <div className="text-xs text-muted-foreground">
+                                        <div className="text-sm text-muted-foreground font-medium">
                                           ${holding.value}M
                                         </div>
                                       )}
