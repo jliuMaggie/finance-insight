@@ -41,6 +41,10 @@ export default function FinanceInsightPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<'12h' | '24h' | '36h' | '48h'>('24h');
+  
+  // 前端缓存记忆，记录已加载的数据
+  const [newsCache, setNewsCache] = useState<Record<string, NewsItem[]>>({});
+  const [lastUpdated, setLastUpdated] = useState<Record<string, string>>({});
 
   const [holdings, setHoldings] = useState<HoldingChange[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(true);
@@ -58,7 +62,7 @@ export default function FinanceInsightPage() {
     '詹姆斯·西蒙斯'
   ];
 
-  // 加载新闻数据
+  // 加载新闻数据（优先使用前端缓存）
   useEffect(() => {
     loadNews();
   }, [timeRange]); // 当时间段变化时重新加载
@@ -69,11 +73,26 @@ export default function FinanceInsightPage() {
   }, []);
 
   const loadNews = async () => {
+    // 如果前端缓存中有数据，直接使用
+    if (newsCache[timeRange] && newsCache[timeRange].length > 0) {
+      console.log(`Using cached news for ${timeRange}`);
+      setNews(newsCache[timeRange]);
+      setNewsLoading(false);
+      return;
+    }
+
     try {
       setNewsLoading(true);
       const response = await fetch(`/api/news?timeRange=${timeRange}`);
       if (!response.ok) throw new Error('Failed to load news');
       const data = await response.json();
+      
+      // 保存到前端缓存
+      if (data.news && data.news.length > 0) {
+        setNewsCache(prev => ({ ...prev, [timeRange]: data.news }));
+        setLastUpdated(prev => ({ ...prev, [timeRange]: data.lastUpdated }));
+      }
+      
       setNews(data.news || []);
     } catch (error) {
       console.error('Error loading news:', error);
@@ -242,16 +261,25 @@ export default function FinanceInsightPage() {
                         key={range}
                         onClick={() => setTimeRange(range)}
                         className={cn(
-                          "px-3 py-1.5 text-sm rounded-md transition-colors",
+                          "px-3 py-1.5 text-sm rounded-md transition-colors relative",
                           timeRange === range
                             ? "bg-blue-600 text-white hover:bg-blue-700"
                             : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                         )}
+                        title={newsCache[range] ? `已缓存 (${lastUpdated[range] ? new Date(lastUpdated[range]).toLocaleTimeString() : ''})` : '点击加载'}
                       >
                         {range}
+                        {newsCache[range] && (
+                          <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" title="已缓存" />
+                        )}
                       </button>
                     ))}
                   </div>
+                  {lastUpdated[timeRange] && (
+                    <Badge variant="outline" className="text-xs ml-2">
+                      更新于 {new Date(lastUpdated[timeRange]).toLocaleTimeString()}
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
