@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
-import { getSDKConfig } from '@/lib/config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,7 +18,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const config = getSDKConfig();
+  const config = new Config();
   const client = new LLMClient(config, customHeaders);
 
   // 构建 system prompt

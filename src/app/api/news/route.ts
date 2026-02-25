@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SearchClient, LLMClient, HeaderUtils } from 'coze-coding-dev-sdk';
+import { SearchClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { loadNewsData, saveNewsData } from '@/lib/storage';
-import { getSDKConfig } from '@/lib/config';
 
 interface NewsItem {
   id: string;
@@ -32,104 +31,6 @@ const HIGH_QUALITY_SITES = [
   'reuters.com',
   'cnbc.com',
 ];
-
-// 简单去重函数：基于 URL 和标题相似度
-function simpleDeduplicate(newsList: any[]): any[] {
-  const seenUrls = new Set<string>();
-  const seenTitles = new Map<string, any>(); // key: 关键词数组的join结果
-  const result: any[] = [];
-
-  for (const item of newsList) {
-    // 1. URL 去重：提取 URL 的核心部分
-    let urlCore = '';
-    try {
-      const urlObj = new URL(item.url);
-      // 去除查询参数和锚点
-      urlCore = urlObj.origin + urlObj.pathname;
-      // 进一步简化：移除文章 ID 等数字后缀
-      urlCore = urlCore.replace(/\/\d+\.html$/, '').replace(/\/\d+$/, '');
-    } catch (e) {
-      urlCore = item.url;
-    }
-
-    if (seenUrls.has(urlCore)) {
-      continue; // URL 重复，跳过
-    }
-    seenUrls.add(urlCore);
-
-    // 2. 标题相似度去重：提取关键词
-    const titleKeywords = extractKeywords(item.originalTitle);
-    const titleKeywordsStr = titleKeywords.join(','); // 转换为字符串作为 Map key
-    let isDuplicate = false;
-
-    for (const [existingKeywordsStr, existingItem] of seenTitles.entries()) {
-      const existingKeywords = existingKeywordsStr.split(',');
-      // 如果关键词重叠度 > 70%，认为是重复
-      if (calculateKeywordOverlap(titleKeywords, existingKeywords) > 0.7) {
-        // 保留来源更好的新闻
-        if (compareSourceQuality(item.source, existingItem.source) > 0) {
-          // 新新闻更好，替换旧新闻
-          const idx = result.indexOf(existingItem);
-          if (idx !== -1) {
-            result[idx] = item;
-          }
-          seenTitles.set(titleKeywordsStr, item);
-        }
-        isDuplicate = true;
-        break;
-      }
-    }
-
-    if (!isDuplicate) {
-      seenTitles.set(titleKeywordsStr, item);
-      result.push(item);
-    }
-  }
-
-  return result;
-}
-
-// 提取标题关键词（去除停用词和标点）
-function extractKeywords(title: string): string[] {
-  const stopWords = ['的', '了', '是', '在', '和', '与', '等', '将', '要', '这', '那', '个', '位', '条'];
-  return title
-    .replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ' ')
-    .split(' ')
-    .filter(word => word.length > 0 && !stopWords.includes(word));
-}
-
-// 计算关键词重叠度
-function calculateKeywordOverlap(keywords1: string[], keywords2: string[]): number {
-  if (keywords1.length === 0 || keywords2.length === 0) return 0;
-  
-  const intersection = keywords1.filter(k => keywords2.includes(k));
-  const union = [...new Set([...keywords1, ...keywords2])];
-  
-  return intersection.length / union.length;
-}
-
-// 比较来源质量（返回正数表示第一个更好）
-function compareSourceQuality(source1: string, source2: string): number {
-  if (!source1) return -1;
-  if (!source2) return 1;
-  
-  const qualityScores: Record<string, number> = {
-    'caixin.com': 10,
-    'wallstreetcn.com': 9,
-    'jiemian.com': 8,
-    'yicai.com': 8,
-    '36kr.com': 8,
-    'huxiu.com': 7,
-    'economist.com': 10,
-    'ft.com': 9,
-    'wsj.com': 9,
-    'bloomberg.com': 9,
-    'reuters.com': 9,
-    'cnbc.com': 8,
-  };
-  
-  return (qualityScores[source1] || 5) - (qualityScores[source2] || 5);
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -217,7 +118,7 @@ export async function POST() {
 }
 
 async function fetchLatestNews(): Promise<NewsItem[]> {
-  const config = getSDKConfig();
+  const config = new Config();
   const client = new SearchClient(config);
   
   // 优化：使用更全面的金融新闻关键词，避免过度偏向AI相关新闻
@@ -262,9 +163,9 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
 async function processAndRankNews(
   webItems: any[]
 ): Promise<NewsItem[]> {
-  const config = getSDKConfig();
+  const config = new Config();
   const llmClient = new (await import('coze-coding-dev-sdk')).LLMClient(config);
-
+  
   // 提取新闻信息
   const newsData = webItems.map((item, index) => ({
     id: `news-${Date.now()}-${index}`,
@@ -278,11 +179,8 @@ async function processAndRankNews(
     rankScore: item.rank_score || 0,
   }));
 
-  // 简单去重：基于 URL 和标题相似度
-  const deduplicatedNews = simpleDeduplicate(newsData);
-
   // 优化：缩短文本长度，减少 token 消耗
-  const newsText = deduplicatedNews.map((item, idx) => 
+  const newsText = newsData.map((item, idx) => 
     `[${idx + 1}] 标题:${item.originalTitle}
 来源:${item.source||'未知'}
 摘要:${item.summary.substring(0,200)}
@@ -295,15 +193,10 @@ async function processAndRankNews(
 ${newsText}
 
 要求：
-1. 去重处理：识别并去除重复新闻（同一事件的不同报道），只保留最重要的一条
-   - 重复特征：标题关键词高度相似（如"广东GDP 25.8万亿" vs "广东锚定25.8万亿GDP目标"）
-   - 重复特征：摘要核心内容一致（同一会议、同一数据、同一公司）
-   - 重复特征：发布时间相近、事件本质相同
-   - 去重策略：保留权威来源、报道更全面、发布时间较早的那条
-2. 按重要度排序（重大政策>股市动态>公司事件>一般新闻）
-3. 为每条新闻生成简练的AI标题（15-30字）
-4. 生成1-3句话的AI摘要
-5. 评分（1-10分，9-10为重大事件）
+1. 按重要度排序（重大政策>股市动态>公司事件>一般新闻）
+2. 为每条新闻生成简练的AI标题（15-30字）
+3. 生成1-3句话的AI摘要
+4. 评分（1-10分，9-10为重大事件）
 
 返回JSON格式：
 {
@@ -338,7 +231,7 @@ ${newsText}
     if (!jsonMatch) {
       console.error('Failed to parse LLM response for news processing');
       // 降级方案：使用原始数据
-      return deduplicatedNews.slice(0, 20).map((item, idx) => ({
+      return newsData.slice(0, 20).map((item, idx) => ({
         id: item.id,
         rank: idx + 1,
         aiTitle: item.originalTitle,
@@ -354,7 +247,7 @@ ${newsText}
     
     if (!result.news || !Array.isArray(result.news)) {
       console.error('Invalid news data format from LLM');
-      return deduplicatedNews.slice(0, 20).map((item, idx) => ({
+      return newsData.slice(0, 20).map((item, idx) => ({
         id: item.id,
         rank: idx + 1,
         aiTitle: item.originalTitle,
@@ -368,7 +261,7 @@ ${newsText}
 
     // 构建 index 到原始新闻的映射
     const newsMap = new Map(
-      deduplicatedNews.map((item, idx) => [idx + 1, item])
+      newsData.map((item, idx) => [idx + 1, item])
     );
 
     // 返回 TOP 20
@@ -389,7 +282,7 @@ ${newsText}
   } catch (error) {
     console.error('Error processing news with LLM:', error);
     // 降级方案：使用原始数据
-    return deduplicatedNews.slice(0, 20).map((item, idx) => ({
+    return newsData.slice(0, 20).map((item, idx) => ({
       id: item.id,
       rank: idx + 1,
       aiTitle: item.originalTitle,

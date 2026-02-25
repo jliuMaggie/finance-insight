@@ -14,12 +14,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // 声明服务端环境变量
-  env: {
-    ARK_API_KEY: process.env.ARK_API_KEY || '',
-    COZE_BUCKET_ENDPOINT_URL: process.env.COZE_BUCKET_ENDPOINT_URL || '',
-    COZE_BUCKET_NAME: process.env.COZE_BUCKET_NAME || '',
-  },
 };
 
 export default nextConfig;
