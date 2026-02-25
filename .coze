@@ -10,3 +10,4 @@ deps = ["git"] # -> apt install git
 build = ["bash","./scripts/build.sh"]
 run = ["bash","./scripts/start.sh"]
 deps = ["git"] # -> apt install git
+env = ["ARK_API_KEY", "COZE_BUCKET_ENDPOINT_URL", "COZE_BUCKET_NAME"]
