@@ -27,7 +27,7 @@ interface NewsItem {
 interface HoldingChange {
   investor: string;
   symbol: string;
-  action: string;
+  action: '买入' | '增持' | '减持' | '卖出' | '持仓';
   percentage: number;
   date: string;
   value?: number;
@@ -492,7 +492,11 @@ export default function FinanceInsightPage() {
                                         <div className="flex items-center gap-2 mb-1">
                                           <span className="font-semibold text-sm">{holding.symbol}</span>
                                           <Badge
-                                            variant={holding.action === '买入' || holding.action === '增持' ? 'default' : 'destructive'}
+                                            variant={
+                                              holding.action === '买入' || holding.action === '增持' ? 'default' :
+                                              holding.action === '减持' || holding.action === '卖出' ? 'destructive' :
+                                              'secondary'
+                                            }
                                             className="text-[10px] h-5 px-1.5 font-medium"
                                           >
                                             {holding.action}
@@ -511,9 +515,11 @@ export default function FinanceInsightPage() {
                                       <div className="text-right ml-3 flex-shrink-0">
                                         <div className={cn(
                                           "font-bold text-xl leading-none",
-                                          (holding.action === '买入' || holding.action === '增持') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                                          holding.action === '持仓' ? 'text-blue-600 dark:text-blue-400' :
+                                          (holding.action === '买入' || holding.action === '增持') ? 'text-green-600 dark:text-green-400' : 
+                                          'text-red-600 dark:text-red-400'
                                         )}>
-                                          {holding.percentage > 0 ? '+' : ''}{holding.percentage}%
+                                          {holding.percentage}%
                                         </div>
                                         {holding.value && (
                                           <div className="text-[10px] text-muted-foreground font-medium mt-1">

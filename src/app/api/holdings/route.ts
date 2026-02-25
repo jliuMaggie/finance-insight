@@ -7,7 +7,7 @@ import { INVESTORS } from '@/lib/investors';
 interface HoldingChange {
   investor: string;
   symbol: string;
-  action: string;
+  action: '买入' | '增持' | '减持' | '卖出' | '持仓';  // 新增"持仓"类型
   percentage: number;
   date: string;
   value?: number;
@@ -116,23 +116,64 @@ async function fetchInvestorHoldings(
   searchClient: SearchClient,
   llmClient: LLMClient
 ): Promise<HoldingChange[]> {
-  // 搜索该投资者的最新持仓变动
-  const query = `${investor} 持仓变动 13F 增持 减持 近期`;
+  // 判断是个人投资者还是机构投资者
+  const isInstitution = investor.includes('资本') || 
+                        investor.includes('基金') || 
+                        investor.includes('资本') || 
+                        investor === '贝莱德' || 
+                        investor === '红杉资本' ||
+                        investor === '桥水基金' ||
+                        investor === '高瓴资本' ||
+                        investor === '索罗斯基金';
+
+  let query: string;
+  let timeRange: string;
+
+  if (isInstitution) {
+    // 机构投资者使用英文关键词搜索（更准确）
+    let englishQuery = '';
+    if (investor.includes('桥水')) {
+      englishQuery = 'Bridgewater Associates 13F filing holdings 2025 Q4';
+    } else if (investor.includes('红杉')) {
+      englishQuery = 'Sequoia Capital 13F filing holdings 2025';
+    } else if (investor.includes('高瓴')) {
+      englishQuery = 'Hillhouse Capital 13F filing holdings 2025';
+    } else if (investor.includes('贝莱德')) {
+      englishQuery = 'BlackRock 13F filing holdings 2025';
+    } else if (investor.includes('索罗斯')) {
+      englishQuery = 'Soros Fund Management 13F filing holdings 2025';
+    } else {
+      englishQuery = `${investor} 13F filing holdings 2025`;
+    }
+    query = englishQuery;
+    timeRange = '6m'; // 扩大时间范围
+  } else {
+    // 个人投资者使用原有查询
+    query = `${investor} 持仓变动 13F 增持 减持 近期`;
+    timeRange = '2w';
+  }
+  
+  console.log(`Searching holdings for ${investor}, query: ${query}`);
   
   const response = await searchClient.advancedSearch(query, {
     searchType: 'web',
-    count: 10,
-    timeRange: '2w',
+    count: 15, // 增加搜索结果数量
+    timeRange: timeRange,
     needSummary: true,
     needContent: true,
   });
 
   if (!response.web_items || response.web_items.length === 0) {
+    console.log(`No results found for ${investor}`);
     return [];
   }
 
+  console.log(`Found ${response.web_items.length} results for ${investor}`);
+
   // 使用 LLM 提取持仓变动信息
-  const holdings = await extractHoldingFromSearchResults(investor, response.web_items, llmClient);
+  const holdings = await extractHoldingFromSearchResults(investor, response.web_items, llmClient, isInstitution);
+  
+  console.log(`Extracted ${holdings.length} holdings for ${investor}`);
   
   return holdings;
 }
@@ -140,43 +181,64 @@ async function fetchInvestorHoldings(
 async function extractHoldingFromSearchResults(
   investor: string,
   webItems: any[],
-  llmClient: LLMClient
+  llmClient: LLMClient,
+  isInstitution: boolean = false
 ): Promise<HoldingChange[]> {
   // 将搜索结果转换为文本格式
   const resultsText = webItems.map((item, idx) => 
-    `${idx + 1}. 标题: ${item.title}\n   摘要: ${item.summary || item.snippet}\n   内容: ${item.content?.substring(0, 500) || ''}\n   时间: ${item.publish_time || ''}`
+    `${idx + 1}. Title: ${item.title}\n   Summary: ${item.summary || item.snippet}\n   Content: ${item.content?.substring(0, 1000) || ''}\n   Time: ${item.publish_time || ''}`
   ).join('\n\n');
 
-  const prompt = `请从以下搜索结果中提取 ${investor} 的持仓变动信息。
+  // 根据投资者类型调整 prompt
+  let extraInstructions = '';
+  if (isInstitution) {
+    extraInstructions = `
+特别针对机构投资者的13F持仓报告：
+1. 提取"最新持仓"（latest holdings）和"持仓变动"（holdings changes）两种信息
+2. 如果看到"increase", "buy", "added"，将 action 设为"买入"或"增持"
+3. 如果看到"decrease", "sell", "reduced"，将 action 设为"减持"或"卖出"
+4. 如果是"top holdings"或"largest holdings"，提取其持仓占比作为百分比
+5. 注意识别股票代码（如 SPY, IVV, GOOGL, AAPL 等）
+6. 日期可以提取报告期（如 2025 Q4, 2025-12-31）
+7. 如果有"market value"或"value"信息，提取为百万美元`;
+  } else {
+    extraInstructions = `
+1. 只提取真实的持仓变动信息
+2. 如果搜索结果中没有明确的持仓数据，返回空数组`;
+  }
 
-搜索结果：
+  const prompt = `Please extract holdings information for ${investor} from the following search results.
+
+Search Results:
 ${resultsText}
 
-请提取以下信息，只返回JSON格式：
+Please extract the following information and return ONLY in JSON format:
 {
   "holdings": [
     {
-      "symbol": "股票代码或名称",
-      "action": "买入/增持/减持/卖出",
-      "percentage": 变动百分比数字,
-      "date": "日期(YYYY-MM-DD格式)",
-      "value": 持仓价值(百万美元，可选)
+      "symbol": "Stock code or name (e.g., SPY, IVV, Nvidia, Apple)",
+      "action": "buy/increase/decrease/sell/hold",
+      "percentage": percentage change or holding ratio (e.g., 7 for 7%),
+      "date": "Date in YYYY-MM-DD format (e.g., 2025-12-31)",
+      "value": holding value in millions USD (optional)
     }
   ]
 }
 
-注意事项：
-1. 只提取真实的持仓变动信息
-2. 如果搜索结果中没有明确的持仓数据，返回空数组
-3. action 字段只能是：买入、增持、减持、卖出
-4. percentage 为数字，正数表示增持，负数表示减持
-5. 如果信息不明确或不确定，不要猜测`;
+注意事项 / Notes:
+1. action can be: buy, increase, decrease, sell, hold
+2. percentage can be change percentage or holding ratio
+3. If it's "latest holdings" information, set action to "hold", percentage to holding ratio
+4. If information is unclear or uncertain, do not guess
+${extraInstructions}
+
+请用中文返回 action 字段（买入/增持/减持/卖出/持仓），其他字段保持原始格式。`;
 
   try {
     const response = await llmClient.invoke([
       { 
         role: 'system', 
-        content: '你是一位专业的金融分析师，擅长从新闻报道中提取投资持仓变动信息。只提取明确的、可验证的数据。' 
+        content: 'You are a professional financial analyst specializing in extracting holdings information from news reports and 13F filings. Only extract clear, verifiable data. For institutional investors, pay special attention to extracting latest holdings and changes from 13F filings.' 
       },
       { role: 'user', content: prompt }
     ], {
