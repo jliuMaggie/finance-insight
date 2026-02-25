@@ -153,11 +153,55 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
     return [];
   }
 
+  // 简单去重：基于 URL 域名，同一来源只保留最重要的一条
+  const deduplicatedItems = deduplicateNewsByDomain(response.web_items);
+  console.log(`Original: ${response.web_items.length} items, After dedup: ${deduplicatedItems.length} items`);
+
   // 使用 LLM 对新闻进行排序、筛选和优化摘要，获取 TOP 20 重要事件
   // 同时让LLM根据来源质量进行筛选
-  const rankedNews = await processAndRankNews(response.web_items);
+  const rankedNews = await processAndRankNews(deduplicatedItems);
   
   return rankedNews;
+}
+
+// 基于域名和时间去重新闻
+function deduplicateNewsByDomain(webItems: any[]): any[] {
+  const domainMap = new Map<string, any>();
+  
+  webItems.forEach((item, index) => {
+    try {
+      const url = item.url || '';
+      let domain = '';
+      
+      // 提取域名
+      if (url) {
+        try {
+          const urlObj = new URL(url);
+          domain = urlObj.hostname;
+        } catch (e) {
+          // 如果 URL 解析失败，使用 source 字段
+          domain = item.site_name || 'unknown';
+        }
+      } else {
+        domain = item.site_name || 'unknown';
+      }
+      
+      // 如果该域名已经有新闻，保留 rank_score 更高的
+      const existing = domainMap.get(domain);
+      const currentScore = item.rank_score || 0;
+      const existingScore = existing?.rank_score || 0;
+      
+      // 如果当前新闻分数更高，或者没有新闻，则替换
+      if (!existing || currentScore > existingScore) {
+        domainMap.set(domain, { ...item, index });
+      }
+    } catch (e) {
+      console.error('Error processing item for deduplication:', e);
+    }
+  });
+  
+  // 返回去重后的新闻列表
+  return Array.from(domainMap.values());
 }
 
 async function processAndRankNews(
@@ -197,6 +241,7 @@ ${newsText}
 2. 为每条新闻生成简练的AI标题（15-30字）
 3. 生成1-3句话的AI摘要
 4. 评分（1-10分，9-10为重大事件）
+5. 去重要求：如果多条新闻报道同一事件（如同一个会议、同一个政策、同一个公司动作），只保留最重要的一条，去除重复内容
 
 返回JSON格式：
 {
@@ -217,7 +262,7 @@ ${newsText}
     const response = await llmClient.invoke([
       { 
         role: 'system', 
-        content: '专业金融新闻编辑，擅长筛选重要事件、生成精准标题和摘要，快速判断对金融市场的影响。' 
+        content: '专业金融新闻编辑，擅长筛选重要事件、生成精准标题和摘要，快速判断对金融市场的影响。能够识别并去除报道同一事件的重复新闻。' 
       },
       { role: 'user', content: prompt }
     ], {
