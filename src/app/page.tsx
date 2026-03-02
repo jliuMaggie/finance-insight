@@ -191,7 +191,7 @@ function ReportViewer() {
 
 export default function FinanceInsightPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
-  const [newsLoading, setNewsLoading] = useState(true);
+  const [newsLoading, setNewsLoading] = useState(false); // 初始状态为 false，不自动加载
   const [timeRange, setTimeRange] = useState<'12h' | '24h' | '36h' | '48h'>('24h');
   
   // 前端缓存记忆，记录已加载的数据
@@ -199,8 +199,9 @@ export default function FinanceInsightPage() {
   const [lastUpdated, setLastUpdated] = useState<Record<string, string>>({});
 
   const [holdings, setHoldings] = useState<HoldingChange[]>([]);
-  const [holdingsLoading, setHoldingsLoading] = useState(true);
+  const [holdingsLoading, setHoldingsLoading] = useState(false); // 初始状态为 false，不自动加载
   const [holdingsRefreshing, setHoldingsRefreshing] = useState(false);
+  const [holdingsLoaded, setHoldingsLoaded] = useState(false); // 标识是否已加载过
 
   const [question, setQuestion] = useState('');
   const [aiResponse, setAiResponse] = useState<AIResponse>({ content: '', isStreaming: false });
@@ -209,15 +210,15 @@ export default function FinanceInsightPage() {
   // 从配置文件中获取投资者列表
   const investors = INVESTORS.map(inv => inv.name);
 
-  // 加载新闻数据（优先使用前端缓存）
-  useEffect(() => {
-    loadNews();
-  }, [timeRange]); // 当时间段变化时重新加载
+  // 移除自动加载，改为手动刷新
+  // useEffect(() => {
+  //   loadNews();
+  // }, [timeRange]);
 
-  // 加载持仓数据
-  useEffect(() => {
-    loadHoldings();
-  }, []);
+  // 移除自动加载，改为手动刷新
+  // useEffect(() => {
+  //   loadHoldings();
+  // }, []);
 
   const loadNews = async () => {
     // 如果前端缓存中有数据，直接使用
@@ -267,6 +268,7 @@ export default function FinanceInsightPage() {
   const refreshHoldings = async () => {
     try {
       setHoldingsRefreshing(true);
+      setHoldingsLoaded(true);
       const response = await fetch('/api/holdings/refresh', { method: 'POST' });
       if (!response.ok) throw new Error('Failed to refresh holdings');
       const data = await response.json();
@@ -394,14 +396,29 @@ export default function FinanceInsightPage() {
           <TabsContent value="news" className="space-y-4">
             <Card>
               <CardHeader>
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                    重要金融事件（TOP 20）
-                  </CardTitle>
-                  <CardDescription>
-                    基于豆包AI联网搜索的国内外重大金融新闻
-                  </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      重要金融事件（TOP 20）
+                    </CardTitle>
+                    <CardDescription>
+                      基于豆包AI联网搜索的国内外重大金融新闻
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      setNewsLoading(true);
+                      loadNews();
+                    }}
+                    disabled={newsLoading}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", newsLoading && "animate-spin")} />
+                    刷新
+                  </Button>
                 </div>
                 {/* 时间段选择器 */}
                 <div className="flex items-center gap-2 mt-4">
@@ -410,7 +427,11 @@ export default function FinanceInsightPage() {
                     {(['12h', '24h', '36h', '48h'] as const).map((range) => (
                       <button
                         key={range}
-                        onClick={() => setTimeRange(range)}
+                        onClick={() => {
+                          setTimeRange(range);
+                          setNewsLoading(true);
+                          loadNews();
+                        }}
                         className={cn(
                           "px-3 py-1.5 text-sm rounded-md transition-colors relative",
                           timeRange === range
@@ -444,7 +465,8 @@ export default function FinanceInsightPage() {
                 ) : news.length === 0 ? (
                   <div className="text-center py-12">
                     <TrendingUp className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
-                    <p className="text-muted-foreground">暂无新闻数据</p>
+                    <p className="text-muted-foreground mb-4">暂无新闻数据</p>
+                    <p className="text-sm text-muted-foreground">请点击上方"刷新"按钮加载最新新闻</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -580,7 +602,8 @@ export default function FinanceInsightPage() {
                 ) : holdings.length === 0 ? (
                   <div className="text-center py-12">
                     <DollarSign className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
-                    <p className="text-muted-foreground">暂无持仓数据</p>
+                    <p className="text-muted-foreground mb-4">暂无持仓数据</p>
+                    <p className="text-sm text-muted-foreground">请点击上方"刷新"按钮加载最新持仓变动</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
