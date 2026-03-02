@@ -38,6 +38,157 @@ interface AIResponse {
   isStreaming: boolean;
 }
 
+// 简报查看器组件
+function ReportViewer() {
+  const [reports, setReports] = useState<any[]>([]);
+  const [selectedReport, setSelectedReport] = useState<any>(null);
+  const [reportContent, setReportContent] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  // 加载简报列表
+  useEffect(() => {
+    loadReports();
+  }, []);
+
+  // 当选择简报时，加载内容
+  useEffect(() => {
+    if (selectedReport) {
+      loadReportContent(selectedReport.filename);
+    }
+  }, [selectedReport]);
+
+  const loadReports = async () => {
+    try {
+      const response = await fetch('/api/reports');
+      const data = await response.json();
+      if (data.success) {
+        setReports(data.reports);
+        // 默认选择最新的简报
+        if (data.reports.length > 0) {
+          setSelectedReport(data.reports[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading reports:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadReportContent = async (filename: string) => {
+    try {
+      const response = await fetch(`/api/reports/${filename}`);
+      const data = await response.json();
+      if (data.success) {
+        setReportContent(data.content);
+      }
+    } catch (error) {
+      console.error('Error loading report content:', error);
+    }
+  };
+
+  // 将 Markdown 转换为简单的 HTML
+  const renderMarkdown = (markdown: string) => {
+    if (!markdown) return '';
+    
+    // 简单的 Markdown 转换
+    let html = markdown;
+    
+    // 转换标题
+    html = html.replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold mt-6 mb-3">$1</h3>');
+    html = html.replace(/^## (.*$)/gm, '<h2 class="text-xl font-bold mt-8 mb-4 text-blue-600 dark:text-blue-400">$1</h2>');
+    html = html.replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mb-6">$1</h1>');
+    
+    // 转换加粗
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold">$1</strong>');
+    
+    // 转换列表
+    html = html.replace(/^- (.*$)/gm, '<li class="ml-4 list-disc mb-1">$1</li>');
+    
+    // 转换段落
+    html = html.replace(/^(?!<[hlu])/gm, '<p class="mb-2">$&</p>');
+    
+    return html;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-purple-600 dark:text-purple-400" />
+          <p className="text-sm text-muted-foreground">正在加载简报...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (reports.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <ExternalLink className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
+        <p className="text-muted-foreground">暂无简报</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* 简报列表 */}
+      <div className="lg:col-span-1">
+        <div className="space-y-2">
+          {reports.map((report) => (
+            <button
+              key={report.filename}
+              onClick={() => setSelectedReport(report)}
+              className={cn(
+                "w-full text-left p-4 rounded-lg border transition-all",
+                selectedReport?.filename === report.filename
+                  ? "bg-purple-50 dark:bg-purple-950/20 border-purple-500 dark:border-purple-400"
+                  : "bg-background hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              )}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <Badge
+                  variant={report.type === '早报' ? 'default' : 'secondary'}
+                  className="text-xs"
+                >
+                  {report.type}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {report.date}
+                </span>
+              </div>
+              <div className="font-semibold text-sm">
+                {report.date} {report.type}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 简报内容 */}
+      <div className="lg:col-span-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ExternalLink className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              {selectedReport?.date} {selectedReport?.type}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[600px]">
+              <div
+                className="prose prose-sm dark:prose-invert max-w-none"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(reportContent) }}
+              />
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export default function FinanceInsightPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
@@ -220,10 +371,14 @@ export default function FinanceInsightPage() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         <Tabs defaultValue="news" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
+          <TabsList className="grid w-full grid-cols-4 lg:w-[800px]">
             <TabsTrigger value="news" className="gap-2">
               <TrendingUp className="h-4 w-4" />
               金融新闻
+            </TabsTrigger>
+            <TabsTrigger value="reports" className="gap-2">
+              <ExternalLink className="h-4 w-4" />
+              早晚简报
             </TabsTrigger>
             <TabsTrigger value="holdings" className="gap-2">
               <DollarSign className="h-4 w-4" />
@@ -364,6 +519,26 @@ export default function FinanceInsightPage() {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Reports Tab - 早晚简报 */}
+          <TabsContent value="reports" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <ExternalLink className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    每日早晚简报
+                  </CardTitle>
+                  <CardDescription>
+                    智能体生成的每日金融市场概览，涵盖宏观要闻、市场动态、政策监管、行业热点
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ReportViewer />
               </CardContent>
             </Card>
           </TabsContent>
