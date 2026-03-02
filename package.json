@@ -8,7 +8,10 @@
     "preinstall": "npx only-allow pnpm",
     "lint": "eslint",
     "start": "bash ./scripts/start.sh",
-    "ts-check": "tsc -p tsconfig.json"
+    "ts-check": "tsc -p tsconfig.json",
+    "schedule:reports": "tsx scripts/schedule-reports.ts",
+    "schedule:reports:morning": "tsx scripts/schedule-reports.ts --manual --morning",
+    "schedule:reports:evening": "tsx scripts/schedule-reports.ts --manual --evening"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
@@ -82,6 +85,7 @@
     "react-dev-inspector": "^2.0.1",
     "shadcn": "latest",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   },
   "packageManager": "pnpm@9.0.0",
