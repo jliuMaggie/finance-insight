@@ -121,50 +121,85 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
   const config = new Config();
   const client = new SearchClient(config);
   
-  // 优化：使用更全面的金融新闻关键词，避免过度偏向AI相关新闻
-  // 参考豆包智能体的查询方式，涵盖经济、股市、政策、科技等多个维度
-  const query = '近24小时重要经济事件 股市动态 政策变化 央行政策 宏观数据 上市公司 重大并购 融资事件 消费数据 国际贸易 市场波动 科技互联网';
+  // 使用多个查询关键词进行搜索，确保覆盖更全面的金融新闻
+  const queries = [
+    '重要经济事件 股市动态 央行政策 宏观数据 2026',
+    '上市公司重大并购 融资事件 投资动态 最新',
+    '国际金融市场 美股 港股 A股 行情',
+    '经济政策 贸易数据 消费数据 最新消息',
+  ];
   
-  // 策略：先限定高质量媒体搜索
-  let response = await client.advancedSearch(query, {
-    searchType: 'web',
-    count: 30, // 优化：从50减少到30，减少token消耗
-    timeRange: '1d',
-    needSummary: true,
-    needUrl: true,
-    needContent: true,
-    sites: HIGH_QUALITY_SITES.join(','),
-  });
-
-  // 如果高质量媒体结果不足，扩展到更广泛的来源
-  if (!response.web_items || response.web_items.length < 10) {
-    console.log('High quality sources results insufficient, searching broader...');
-    response = await client.advancedSearch(query, {
+  const allResults: any[] = [];
+  
+  // 执行多个查询，合并结果
+  for (const query of queries) {
+    try {
+      const response = await client.advancedSearch(query, {
+        searchType: 'web',
+        count: 20, // 每个查询获取20条
+        timeRange: '1d',
+        needSummary: true,
+        needUrl: true,
+        needContent: true,
+      });
+      
+      if (response.web_items && response.web_items.length > 0) {
+        console.log(`Query "${query.substring(0, 30)}..." returned ${response.web_items.length} results`);
+        allResults.push(...response.web_items);
+      }
+    } catch (error) {
+      console.error(`Error searching for query: ${query}`, error);
+    }
+  }
+  
+  // 如果多个查询结果太少，再进行一次广泛搜索
+  if (allResults.length < 15) {
+    console.log('Multiple queries returned insufficient results, doing broader search...');
+    const broadResponse = await client.advancedSearch('金融新闻 股市 经济 最新', {
       searchType: 'web',
-      count: 30, // 优化：保持30条
+      count: 40,
       timeRange: '1d',
       needSummary: true,
       needUrl: true,
       needContent: true,
     });
+    
+    if (broadResponse.web_items) {
+      allResults.push(...broadResponse.web_items);
+    }
   }
+  
+  console.log(`Total raw results: ${allResults.length}`);
 
-  if (!response.web_items || response.web_items.length === 0) {
-    return [];
-  }
+  // 基于 URL 去重（避免同一新闻重复出现）
+  const uniqueResults = deduplicateByUrl(allResults);
+  console.log(`After URL dedup: ${uniqueResults.length} items`);
 
-  // 简单去重：基于 URL 域名，同一来源只保留最重要的一条
-  const deduplicatedItems = deduplicateNewsByDomain(response.web_items);
-  console.log(`Original: ${response.web_items.length} items, After dedup: ${deduplicatedItems.length} items`);
+  // 基于域名去重，每个域名最多保留2条
+  const deduplicatedItems = deduplicateNewsByDomain(uniqueResults);
+  console.log(`After domain dedup: ${deduplicatedItems.length} items`);
 
   // 使用 LLM 对新闻进行排序、筛选和优化摘要，获取 TOP 20 重要事件
-  // 同时让LLM根据来源质量进行筛选
   const rankedNews = await processAndRankNews(deduplicatedItems);
   
   return rankedNews;
 }
 
-// 基于域名去重新闻，每个域名最多保留3条
+// 基于 URL 去重
+function deduplicateByUrl(webItems: any[]): any[] {
+  const urlMap = new Map<string, any>();
+  
+  webItems.forEach((item, index) => {
+    const url = item.url || '';
+    if (url && !urlMap.has(url)) {
+      urlMap.set(url, { ...item, index });
+    }
+  });
+  
+  return Array.from(urlMap.values());
+}
+
+// 基于域名去重新闻，每个域名最多保留2条
 function deduplicateNewsByDomain(webItems: any[]): any[] {
   const domainItemsMap = new Map<string, any[]>();
   
@@ -189,8 +224,8 @@ function deduplicateNewsByDomain(webItems: any[]): any[] {
       // 获取该域名已有的新闻列表
       const existingItems = domainItemsMap.get(domain) || [];
       
-      // 每个域名最多保留3条新闻
-      if (existingItems.length < 3) {
+      // 每个域名最多保留2条新闻
+      if (existingItems.length < 2) {
         existingItems.push({ ...item, index });
         domainItemsMap.set(domain, existingItems);
       }
