@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { RefreshCw, TrendingUp, DollarSign, Brain, ExternalLink, Calendar, MessageSquare, User, Send, Building2, Info, Star } from 'lucide-react';
+import { RefreshCw, TrendingUp, DollarSign, Brain, ExternalLink, Calendar, MessageSquare, User, Send, Building2, Info, Star, Newspaper, Globe, Link2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { INVESTORS, getInvestorInfo, Investor } from '@/lib/investors';
 
@@ -373,7 +373,7 @@ export default function FinanceInsightPage() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         <Tabs defaultValue="news" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-[800px]">
+          <TabsList className="grid w-full grid-cols-5 lg:w-[1000px]">
             <TabsTrigger value="news" className="gap-2">
               <TrendingUp className="h-4 w-4" />
               金融新闻
@@ -385,6 +385,10 @@ export default function FinanceInsightPage() {
             <TabsTrigger value="holdings" className="gap-2">
               <DollarSign className="h-4 w-4" />
               持仓变动
+            </TabsTrigger>
+            <TabsTrigger value="media" className="gap-2">
+              <Newspaper className="h-4 w-4" />
+              媒体导航
             </TabsTrigger>
             <TabsTrigger value="ai-chat" className="gap-2">
               <MessageSquare className="h-4 w-4" />
@@ -736,6 +740,130 @@ export default function FinanceInsightPage() {
                     })}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Media Navigation Tab */}
+          <TabsContent value="media" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Newspaper className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  财经媒体导航
+                </CardTitle>
+                <CardDescription>
+                  精选国内外高质量经济商业新闻媒体，一站式获取专业财经资讯
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-8">
+                {/* 国内媒体 */}
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Globe className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    <h3 className="text-lg font-semibold">国内媒体</h3>
+                    <Badge variant="outline" className="text-xs">10家</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {[
+                      { name: '虎嗅', url: 'https://www.huxiu.com', desc: '商业科技资讯' },
+                      { name: '36氪', url: 'https://36kr.com', desc: '创业投资平台' },
+                      { name: '钛媒体', url: 'https://www.tmtpost.com', desc: '科技财经媒体' },
+                      { name: '界面新闻', url: 'https://www.jiemian.com', desc: '商业财经新闻' },
+                      { name: '财新网', url: 'https://www.caixin.com', desc: '财经新闻门户' },
+                      { name: '第一财经', url: 'https://www.yicai.com', desc: '专业财经频道' },
+                      { name: '经济观察报', url: 'https://www.eeo.com.cn', desc: '经济类报纸' },
+                      { name: '中国经营报', url: 'https://www.cb.com.cn', desc: '经营类报纸' },
+                      { name: '21世纪经济报道', url: 'https://www.21jingji.com', desc: '财经报纸' },
+                      { name: '华尔街见闻', url: 'https://wallstreetcn.com', desc: '全球财经资讯' },
+                    ].map((media) => (
+                      <a
+                        key={media.name}
+                        href={media.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex flex-col items-center p-4 rounded-lg border bg-card hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:border-blue-500 dark:hover:border-blue-400 transition-all hover:shadow-md"
+                      >
+                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-white font-bold mb-2 group-hover:scale-110 transition-transform">
+                          {media.name.charAt(0)}
+                        </div>
+                        <span className="font-medium text-sm text-center group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                          {media.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground mt-1 text-center">
+                          {media.desc}
+                        </span>
+                        <Link2 className="h-3 w-3 text-muted-foreground mt-2 group-hover:text-blue-500 transition-colors" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 国外媒体 */}
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Globe className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <h3 className="text-lg font-semibold">国际媒体</h3>
+                    <Badge variant="outline" className="text-xs">12家</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {[
+                      { name: '华尔街日报 The Wall Street Journal', url: 'https://www.wsj.com', desc: '美国财经报纸' },
+                      { name: '金融时报 Financial Times', url: 'https://www.ft.com', desc: '英国财经报纸' },
+                      { name: '经济学人 The Economist', url: 'https://www.economist.com', desc: '全球政经周刊' },
+                      { name: '彭博社 Bloomberg', url: 'https://www.bloomberg.com', desc: '全球财经资讯' },
+                      { name: '路透社 Reuters', url: 'https://www.reuters.com', desc: '国际通讯社' },
+                      { name: '福布斯 Forbes', url: 'https://www.forbes.com', desc: '商业财经杂志' },
+                      { name: '商业内幕 Business Insider', url: 'https://www.businessinsider.com', desc: '商业新闻网' },
+                      { name: '财富 Fortune', url: 'https://www.fortune.com', desc: '商业杂志' },
+                      { name: '纽约时报财经 NYTimes Business', url: 'https://www.nytimes.com/section/business', desc: '财经版块' },
+                      { name: 'BBC财经 BBC Business', url: 'https://www.bbc.com/news/business', desc: '英国财经' },
+                      { name: '日经亚洲 Nikkei Asia', url: 'https://asia.nikkei.com', desc: '日本财经' },
+                      { name: 'FT中文网', url: 'https://www.ftchinese.com', desc: '金融时报中文' },
+                    ].map((media) => (
+                      <a
+                        key={media.name}
+                        href={media.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex flex-col p-4 rounded-lg border bg-card hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:border-blue-500 dark:hover:border-blue-400 transition-all hover:shadow-md"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold flex-shrink-0 group-hover:scale-110 transition-transform">
+                            {media.name.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-medium text-sm block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
+                              {media.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground mt-1 block">
+                              {media.desc}
+                            </span>
+                          </div>
+                          <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-blue-500 transition-colors flex-shrink-0 mt-1" />
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 使用提示 */}
+                <Card className="bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
+                  <CardContent className="pt-4">
+                    <div className="flex items-start gap-3">
+                      <Info className="h-5 w-5 text-slate-500 mt-0.5" />
+                      <div className="text-sm text-muted-foreground">
+                        <p className="font-medium text-foreground mb-2">使用提示</p>
+                        <ul className="space-y-1 list-disc list-inside">
+                          <li>点击媒体卡片即可在新标签页中打开对应网站</li>
+                          <li>国内媒体主要为中文内容，国际媒体多为英文内容</li>
+                          <li>部分国际媒体可能需要科学上网才能访问</li>
+                          <li>建议收藏本页面，随时快速访问常用财经媒体</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </CardContent>
             </Card>
           </TabsContent>
