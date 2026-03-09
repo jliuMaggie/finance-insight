@@ -164,9 +164,9 @@ async function fetchLatestNews(): Promise<NewsItem[]> {
   return rankedNews;
 }
 
-// 基于域名和时间去重新闻
+// 基于域名去重新闻，每个域名最多保留3条
 function deduplicateNewsByDomain(webItems: any[]): any[] {
-  const domainMap = new Map<string, any>();
+  const domainItemsMap = new Map<string, any[]>();
   
   webItems.forEach((item, index) => {
     try {
@@ -186,22 +186,29 @@ function deduplicateNewsByDomain(webItems: any[]): any[] {
         domain = item.site_name || 'unknown';
       }
       
-      // 如果该域名已经有新闻，保留 rank_score 更高的
-      const existing = domainMap.get(domain);
-      const currentScore = item.rank_score || 0;
-      const existingScore = existing?.rank_score || 0;
+      // 获取该域名已有的新闻列表
+      const existingItems = domainItemsMap.get(domain) || [];
       
-      // 如果当前新闻分数更高，或者没有新闻，则替换
-      if (!existing || currentScore > existingScore) {
-        domainMap.set(domain, { ...item, index });
+      // 每个域名最多保留3条新闻
+      if (existingItems.length < 3) {
+        existingItems.push({ ...item, index });
+        domainItemsMap.set(domain, existingItems);
       }
     } catch (e) {
       console.error('Error processing item for deduplication:', e);
     }
   });
   
-  // 返回去重后的新闻列表
-  return Array.from(domainMap.values());
+  // 将所有域名的新闻合并，并保持原始顺序
+  const allItems: any[] = [];
+  domainItemsMap.forEach((items) => {
+    allItems.push(...items);
+  });
+  
+  // 按原始顺序排序
+  allItems.sort((a, b) => a.index - b.index);
+  
+  return allItems;
 }
 
 async function processAndRankNews(
