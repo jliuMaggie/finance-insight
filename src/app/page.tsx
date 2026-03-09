@@ -210,19 +210,19 @@ export default function FinanceInsightPage() {
   // 从配置文件中获取投资者列表
   const investors = INVESTORS.map(inv => inv.name);
 
-  // 移除自动加载，改为手动刷新
-  // useEffect(() => {
-  //   loadNews();
-  // }, [timeRange]);
+  // 页面加载时自动读取缓存数据
+  useEffect(() => {
+    loadNews();
+  }, [timeRange]);
 
-  // 移除自动加载，改为手动刷新
-  // useEffect(() => {
-  //   loadHoldings();
-  // }, []);
+  // 页面加载时自动读取持仓缓存
+  useEffect(() => {
+    loadHoldings();
+  }, []);
 
-  const loadNews = async () => {
-    // 如果前端缓存中有数据，直接使用
-    if (newsCache[timeRange] && newsCache[timeRange].length > 0) {
+  const loadNews = async (forceRefresh = false) => {
+    // 如果不是强制刷新且前端缓存中有数据，直接使用
+    if (!forceRefresh && newsCache[timeRange] && newsCache[timeRange].length > 0) {
       console.log(`Using cached news for ${timeRange}`);
       setNews(newsCache[timeRange]);
       setNewsLoading(false);
@@ -231,7 +231,11 @@ export default function FinanceInsightPage() {
 
     try {
       setNewsLoading(true);
-      const response = await fetch(`/api/news?timeRange=${timeRange}`);
+      // forceRefresh=true 时跳过后端缓存
+      const url = forceRefresh 
+        ? `/api/news?timeRange=${timeRange}&refresh=true`
+        : `/api/news?timeRange=${timeRange}`;
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to load news');
       const data = await response.json();
       
@@ -413,7 +417,7 @@ export default function FinanceInsightPage() {
                   <Button
                     onClick={() => {
                       setNewsLoading(true);
-                      loadNews();
+                      loadNews(true);  // 强制刷新，跳过缓存
                     }}
                     disabled={newsLoading}
                     variant="outline"
@@ -433,8 +437,7 @@ export default function FinanceInsightPage() {
                         key={range}
                         onClick={() => {
                           setTimeRange(range);
-                          setNewsLoading(true);
-                          loadNews();
+                          // useEffect 会自动触发 loadNews()
                         }}
                         className={cn(
                           "px-3 py-1.5 text-sm rounded-md transition-colors relative",
@@ -470,7 +473,7 @@ export default function FinanceInsightPage() {
                   <div className="text-center py-12">
                     <TrendingUp className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
                     <p className="text-muted-foreground mb-4">暂无新闻数据</p>
-                    <p className="text-sm text-muted-foreground">请点击上方"刷新"按钮加载最新新闻</p>
+                    <p className="text-sm text-muted-foreground">请点击上方"刷新"按钮获取最新新闻</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
