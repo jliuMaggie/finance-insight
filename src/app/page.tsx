@@ -199,9 +199,8 @@ export default function FinanceInsightPage() {
   const [lastUpdated, setLastUpdated] = useState<Record<string, string>>({});
 
   const [holdings, setHoldings] = useState<HoldingChange[]>([]);
-  const [holdingsLoading, setHoldingsLoading] = useState(false); // 初始状态为 false，不自动加载
-  const [holdingsRefreshing, setHoldingsRefreshing] = useState(false);
-  const [holdingsLoaded, setHoldingsLoaded] = useState(false); // 标识是否已加载过
+  const [holdingsLoading, setHoldingsLoading] = useState(false);
+  const [holdingsLastUpdated, setHoldingsLastUpdated] = useState<string>('');
 
   const [question, setQuestion] = useState('');
   const [aiResponse, setAiResponse] = useState<AIResponse>({ content: '', isStreaming: false });
@@ -261,26 +260,12 @@ export default function FinanceInsightPage() {
       if (!response.ok) throw new Error('Failed to load holdings');
       const data = await response.json();
       setHoldings(data.holdings || []);
+      setHoldingsLastUpdated(data.lastUpdated || '');
     } catch (error) {
       console.error('Error loading holdings:', error);
       setHoldings([]);
     } finally {
       setHoldingsLoading(false);
-    }
-  };
-
-  const refreshHoldings = async () => {
-    try {
-      setHoldingsRefreshing(true);
-      setHoldingsLoaded(true);
-      const response = await fetch('/api/holdings/refresh', { method: 'POST' });
-      if (!response.ok) throw new Error('Failed to refresh holdings');
-      const data = await response.json();
-      setHoldings(data.holdings || []);
-    } catch (error) {
-      console.error('Error refreshing holdings:', error);
-    } finally {
-      setHoldingsRefreshing(false);
     }
   };
 
@@ -586,16 +571,11 @@ export default function FinanceInsightPage() {
                       {INVESTORS.length}位投资大师（含个人与机构）近期持仓变化
                     </CardDescription>
                   </div>
-                  <Button
-                    onClick={refreshHoldings}
-                    disabled={holdingsRefreshing}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <RefreshCw className={cn("h-4 w-4", holdingsRefreshing && "animate-spin")} />
-                    刷新
-                  </Button>
+                  {holdingsLastUpdated && (
+                    <Badge variant="outline" className="text-xs">
+                      数据更新于 {holdingsLastUpdated}
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -610,7 +590,7 @@ export default function FinanceInsightPage() {
                   <div className="text-center py-12">
                     <DollarSign className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
                     <p className="text-muted-foreground mb-4">暂无持仓数据</p>
-                    <p className="text-sm text-muted-foreground">请点击上方"刷新"按钮加载最新持仓变动</p>
+                    <p className="text-sm text-muted-foreground">数据正在准备中，请稍后再查看</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
