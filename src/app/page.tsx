@@ -265,6 +265,23 @@ export default function FinanceInsightPage() {
                             {step.step === 4 && '分析完成'}
                           </p>
                         )}
+                        {step.step === 1 && step.status === 'completed' && step.data?.sources && (
+                          <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <p className="text-xs text-muted-foreground mb-1">新闻来源：</p>
+                            <div className="flex flex-wrap gap-1">
+                              {step.data.sources.slice(0, 8).map((s: any, i: number) => (
+                                <Badge key={i} variant="outline" className="text-xs py-0 px-1.5">
+                                  {s.name}({s.count})
+                                </Badge>
+                              ))}
+                              {step.data.sources.length > 8 && (
+                                <Badge variant="outline" className="text-xs py-0 px-1.5">
+                                  +{step.data.sources.length - 8}个
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
