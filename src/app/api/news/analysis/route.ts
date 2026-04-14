@@ -1,46 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SearchClient, Config, LLMClient } from 'coze-coding-dev-sdk';
 
-// 精选财经媒体
+// 精选财经媒体列表
 const MEDIA_LIST = [
-  { name: '虎嗅', keywords: ['huxiu.com'] },
-  { name: '36氪', keywords: ['36kr.com'] },
-  { name: '钛媒体', keywords: ['tmtpost.com'] },
-  { name: '界面新闻', keywords: ['jiemian.com'] },
-  { name: '财新网', keywords: ['caixin.com'] },
-  { name: '第一财经', keywords: ['yicai.com'] },
-  { name: '经济观察报', keywords: ['eeo.com.cn'] },
-  { name: '华尔街见闻', keywords: ['wallstreetcn.com'] },
-  { name: '华尔街日报', keywords: ['wsj.com'] },
-  { name: '金融时报', keywords: ['ft.com', 'ftchinese.com'] },
-  { name: '经济学人', keywords: ['economist.com'] },
-  { name: '彭博社', keywords: ['bloomberg.com'] },
-  { name: '路透社', keywords: ['reuters.com'] },
-  { name: 'BBC财经', keywords: ['bbc.com/news/business'] },
+  '虎嗅', '36氪', '钛媒体', '界面新闻', '财新网', 
+  '第一财经', '经济观察报', '华尔街见闻',
+  '华尔街日报', '金融时报', '经济学人', '彭博社', '路透社'
 ];
 
-// 高权重关键词（重要新闻）
-const HIGH_WEIGHT_KEYWORDS = [
-  '战争', '冲突', '制裁', '关税', '核', '导弹',
-  '大选', '总统', '白宫', '国会', '议会',
-  '央行', '美联储', '加息', '降息', '利率',
-  '崩盘', '暴涨', '暴跌', '危机', '违约',
-  '突破', '首次', '最大', '历史',
-  '协议', '谈判', '签署', '达成',
-  '辞职', '下台', '去世', '任命',
-  '收购', '并购', '上市', '退市',
+// 突发事件关键词（最高权重）
+const BREAKING_KEYWORDS = [
+  '战争', '冲突', '爆发', '袭击', '导弹', '核', '制裁',
+  '停火', '谈判', '协议', '达成', '签署', '破裂',
+  '崩盘', '暴涨', '暴跌', '熔断', '停牌',
+  '总统', '大选', '辞职', '下台', '去世', '任命',
+  '突破', '首次', '最大', '历史新高', '历史低位',
+  '突发', '刚刚', '重磅', '紧急',
 ];
 
-// 排除关键词
+// 次要重要关键词
+const IMPORTANT_KEYWORDS = [
+  '央行', '美联储', '加息', '降息', '利率', 'QE',
+  'GDP', 'CPI', 'PMI', '非农', '就业',
+  '关税', '贸易战', '脱钩',
+  '科技', 'AI', '芯片', '半导体', '新能源',
+  '政策', '监管', '改革', '试点',
+  '上市', '退市', '并购', '收购', '融资',
+];
+
+// 排除词（常规低价值内容）
 const EXCLUDE_PATTERNS = [
-  '早报', '晚报', '日报', '晨报', '收盘行情', '今日行情',
-  '资讯汇总', '新闻汇总', '一览', '速览', '回顾',
-  '周报', '月报', '年度', '盘点',
-  '栏目', '专题', '首页', '频道',
-  '订阅', 'APP', '关于我们',
-  '融资余额', '融资净买入', 'ETF', '科创板股', '创业板股',
-  '涨幅榜', '跌幅榜', '涨停股', '跌停股',
-  '资金流向', '北向资金', '南向资金',
+  '早报', '晚报', '日报', '晨报', '收盘', '午评', '收评',
+  '行情', '涨跌', '涨幅榜', '跌幅榜', '资金流向',
+  '资讯汇总', '新闻汇总', '头版头条', '精华摘要',
+  '滚动新闻', '快讯', '预告', '一览',
+  'ETF', '融资余额', '科创板', '创业板',
+  '周报', '月报', '年报', '季报', '盘点',
+  '栏目', '订阅', 'APP', '关于我们', '广告',
 ];
 
 interface NewsItem {
@@ -50,6 +46,7 @@ interface NewsItem {
   publishTime?: string;
   snippet?: string;
   weightScore: number;
+  isBreaking: boolean;
 }
 
 interface TopicCluster {
@@ -74,129 +71,161 @@ export async function POST(request: NextRequest) {
   const llmClient = new LLMClient(config);
 
   const steps: AnalysisStep[] = [
-    { step: 1, stepName: '爬取新闻', status: 'pending' },
+    { step: 1, stepName: '搜索热点新闻', status: 'pending' },
     { step: 2, stepName: '主题归类', status: 'pending' },
     { step: 3, stepName: '热度排序', status: 'pending' },
-    { step: 4, stepName: '历史分析', status: 'pending' },
+    { step: 4, stepName: '深度分析', status: 'pending' },
   ];
 
   try {
-    // ========== 步骤1：爬取新闻 ==========
+    // ========== 步骤1：搜索热点新闻 ==========
     steps[0].status = 'running';
     
     const allNews: NewsItem[] = [];
-    const usedDomains = new Set<string>();
+    const usedTitles = new Set<string>();
     
-    // 搜索每个媒体的最新新闻
-    const searchPromises = MEDIA_LIST.flatMap(async (media) => {
-      const results: NewsItem[] = [];
+    // 策略：多维度搜索，覆盖不同类型的热点
+    const searchQueries = [
+      // 地缘政治（最高优先级）
+      { query: '美国 伊朗 战争 最新 2025', weight: 15 },
+      { query: '中东局势 冲突 最新 今日', weight: 15 },
+      { query: '美伊 协议 谈判 2025', weight: 12 },
+      { query: '石油 油价 最新 波动', weight: 10 },
       
-      for (const domain of media.keywords) {
-        try {
-          // 针对每个媒体搜索不同主题
-          const queries = [
-            `${domain} 今日 最新 新闻`,
-            `${domain} 财经 市场 最新`,
-          ];
-          
-          for (const query of queries) {
-            const response = await searchClient.advancedSearch(query, {
-              searchType: 'web',
-              count: 10,
-              timeRange: '1d',
-              needSummary: true,
-              needUrl: true,
+      // 重大政策
+      { query: '特朗普 关税 最新 2025', weight: 12 },
+      { query: '央行 美联储 利率 决策', weight: 10 },
+      
+      // 科技突破
+      { query: 'AI 芯片 突破 最新', weight: 8 },
+      
+      // 搜索各媒体首页
+      { query: 'site:huxiu.com OR site:36kr.com OR site:caixin.com OR site:jiemian.com OR site:wallstreetcn.com 今日 头条', weight: 8 },
+    ];
+
+    for (const searchParams of searchQueries) {
+      try {
+        const response = await searchClient.advancedSearch(searchParams.query, {
+          searchType: 'web',
+          count: 15,
+          timeRange: '1d',
+          needSummary: true,
+          needUrl: true,
+        });
+
+        if (response.web_items) {
+          for (const item of response.web_items) {
+            const title = item.title || '';
+            const url = item.url || '';
+            const snippet = item.snippet || '';
+            
+            // 去重（相同标题）
+            const titleKey = title.toLowerCase().replace(/\s+/g, '');
+            if (usedTitles.has(titleKey)) continue;
+            if (!title || title.length < 8) continue;
+            
+            // 计算权重
+            const { score, isBreaking } = calculateWeight(title, snippet, searchParams.weight);
+            
+            // 检查排除词
+            if (shouldExclude(title)) continue;
+            
+            // 识别来源
+            const source = identifySource(url);
+            
+            allNews.push({
+              title,
+              url,
+              source,
+              publishTime: item.publish_time,
+              snippet,
+              weightScore: score,
+              isBreaking,
             });
-
-            if (response.web_items) {
-              for (const item of response.web_items) {
-                const title = item.title || '';
-                const url = item.url || '';
-                
-                // 检查是否已添加过
-                if (usedDomains.has(url)) continue;
-                
-                // 过滤
-                if (!isValidNews(title, url)) continue;
-                
-                const weightScore = calculateWeight(title, item.snippet || '');
-                
-                results.push({
-                  title,
-                  url,
-                  source: media.name,
-                  publishTime: item.publish_time,
-                  snippet: item.snippet || '',
-                  weightScore,
-                });
-                
-                usedDomains.add(url);
-              }
-            }
+            
+            usedTitles.add(titleKey);
           }
-        } catch (error) {
-          console.error(`Search error for ${domain}:`, error);
         }
+      } catch (error) {
+        console.error(`Search error for "${searchParams.query}":`, error);
       }
-      
-      return results;
-    });
-
-    const results = await Promise.all(searchPromises);
-    results.forEach(items => allNews.push(...items));
+    }
 
     // 按权重排序
     allNews.sort((a, b) => b.weightScore - a.weightScore);
 
+    // 去重（相同URL也去掉）
+    const uniqueNews = allNews.filter((item, index, self) => 
+      index === self.findIndex(t => t.url === item.url)
+    );
+
     steps[0].status = 'completed';
     steps[0].data = {
-      totalCount: allNews.length,
-      topNews: allNews.slice(0, 5).map(n => ({ title: n.title, source: n.source, weight: n.weightScore })),
+      totalCount: uniqueNews.length,
+      topNews: uniqueNews.slice(0, 10).map(n => ({ 
+        title: n.title.substring(0, 50), 
+        source: n.source, 
+        weight: n.weightScore,
+        isBreaking: n.isBreaking 
+      })),
     };
 
-    console.log(`步骤1完成：爬取到 ${allNews.length} 条新闻`);
-    console.log('TOP新闻:', allNews.slice(0, 5).map(n => n.title.substring(0, 40)).join(' | '));
+    console.log(`步骤1完成：搜索到 ${uniqueNews.length} 条新闻`);
+    console.log('=== TOP 10 新闻 ===');
+    uniqueNews.slice(0, 10).forEach((n, i) => {
+      console.log(`${i+1}. [${n.weightScore}分] ${n.isBreaking ? '【突发】' : ''}${n.source}: ${n.title.substring(0, 60)}`);
+    });
 
     // ========== 步骤2：主题归类 ==========
     steps[1].status = 'running';
 
-    const topicClusters = await classifyNewsByTopic(allNews, llmClient);
+    const topicClusters = await classifyNewsByTopic(uniqueNews, llmClient);
 
     steps[1].status = 'completed';
     steps[1].data = {
       clustersCount: topicClusters.length,
+      topClusters: topicClusters.slice(0, 3).map(c => c.topic),
     };
 
     console.log(`步骤2完成：归类为 ${topicClusters.length} 个主题`);
+    console.log('TOP主题:', topicClusters.slice(0, 3).map(c => `${c.topic}(${c.newsCount}条)`).join(' | '));
 
     // ========== 步骤3：热度排序 ==========
     steps[2].status = 'running';
 
+    // 考虑突发新闻权重
     const rankedTopics = topicClusters
-      .map((cluster) => ({
-        ...cluster,
-        hotScore: cluster.newsCount * 10 + cluster.importanceScore * 20,
-      }))
+      .map((cluster) => {
+        const hasBreaking = cluster.news.some(n => n.isBreaking);
+        const avgWeight = cluster.news.reduce((sum, n) => sum + n.weightScore, 0) / cluster.news.length;
+        const breakingBonus = hasBreaking ? 50 : 0;
+        
+        return {
+          ...cluster,
+          hotScore: cluster.newsCount * 10 + avgWeight * 15 + cluster.importanceScore * 10 + breakingBonus,
+          hasBreaking,
+        };
+      })
       .sort((a, b) => b.hotScore - a.hotScore);
 
     steps[2].status = 'completed';
     steps[2].data = {
       topTopic: rankedTopics[0] || null,
-      allTopics: rankedTopics,
+      hotTopics: rankedTopics.slice(0, 5),
     };
 
-    console.log(`步骤3完成：TOP1="${rankedTopics[0]?.topic}" (${rankedTopics[0]?.newsCount}条)`);
+    console.log(`步骤3完成：TOP1="${rankedTopics[0]?.topic}" (${rankedTopics[0]?.newsCount}条, 热度${rankedTopics[0]?.hotScore})`);
 
-    // ========== 步骤4：历史分析 ==========
+    // ========== 步骤4：深度分析 ==========
     steps[3].status = 'running';
 
-    let historicalAnalysis = null;
-    if (rankedTopics[0] && rankedTopics[0].newsCount >= 2) {
-      historicalAnalysis = await analyzeHistoricalEvents(rankedTopics[0], llmClient);
+    let deepAnalysis = null;
+    if (rankedTopics[0]) {
+      deepAnalysis = await analyzeTopic(rankedTopics[0], llmClient);
     }
 
     steps[3].status = 'completed';
-    steps[3].data = historicalAnalysis;
+    steps[3].data = deepAnalysis;
 
     // ========== 返回结果 ==========
     return NextResponse.json({
@@ -205,13 +234,14 @@ export async function POST(request: NextRequest) {
       finalResult: {
         topTopic: rankedTopics[0],
         allTopics: rankedTopics,
-        historicalAnalysis,
+        deepAnalysis,
       },
       summary: {
-        totalNews: allNews.length,
+        totalNews: uniqueNews.length,
         totalTopics: topicClusters.length,
         topTopicName: rankedTopics[0]?.topic || '无',
         topTopicCount: rankedTopics[0]?.newsCount || 0,
+        isBreaking: rankedTopics[0]?.hasBreaking || false,
       },
     });
 
@@ -233,46 +263,98 @@ export async function POST(request: NextRequest) {
 }
 
 // ========== 计算权重 ==========
-function calculateWeight(title: string, snippet: string): number {
-  let score = 0;
+function calculateWeight(title: string, snippet: string, searchWeight: number): { score: number; isBreaking: boolean } {
+  let score = searchWeight;
+  let isBreaking = false;
   const text = title + ' ' + (snippet || '');
   
-  for (const kw of HIGH_WEIGHT_KEYWORDS) {
-    if (text.includes(kw)) score += 5;
+  // 突发事件检测
+  for (const kw of BREAKING_KEYWORDS) {
+    if (text.includes(kw)) {
+      score += 8;
+      isBreaking = true;
+      break;
+    }
   }
   
-  // 有具体数字
+  // 重要关键词
+  for (const kw of IMPORTANT_KEYWORDS) {
+    if (text.includes(kw)) score += 4;
+  }
+  
+  // 有具体数字（增强可信度）
   if (/\d+%/.test(text)) score += 3;
-  if (/\d{4}年/.test(text)) score += 2;
-  if (/\d+[亿万]/.test(text)) score += 2;
+  if (/\d{4}年\d{1,2}月/.test(text)) score += 2;
+  if (/\d+[亿万美]/.test(text)) score += 2;
   
   // 标题长度适中
-  if (title.length >= 15 && title.length <= 40) score += 2;
+  if (title.length >= 12 && title.length <= 45) score += 2;
   
-  return score;
+  // 来源可信度
+  const highQualitySources = ['路透社', '彭博社', '华尔街日报', '金融时报', '财新网', '华尔街见闻'];
+  for (const src of highQualitySources) {
+    if (text.includes(src)) score += 3;
+  }
+  
+  return { score, isBreaking };
 }
 
-// ========== 验证新闻 ==========
-function isValidNews(title: string, url: string): boolean {
-  if (!title || title.length < 10 || title.length > 60) return false;
-  
+// ========== 排除检查 ==========
+function shouldExclude(title: string): boolean {
   const lower = title.toLowerCase();
   
   for (const pattern of EXCLUDE_PATTERNS) {
-    if (lower.includes(pattern.toLowerCase())) return false;
+    if (lower.includes(pattern.toLowerCase())) return true;
   }
   
-  return true;
+  // 排除纯数字标题
+  if (/^\d+$/.test(title)) return true;
+  
+  return false;
+}
+
+// ========== 识别来源 ==========
+function identifySource(url: string): string {
+  const urlLower = url.toLowerCase();
+  
+  const sourceMap: Record<string, string> = {
+    'huxiu.com': '虎嗅',
+    '36kr.com': '36氪',
+    'tmtpost.com': '钛媒体',
+    'jiemian.com': '界面新闻',
+    'caixin.com': '财新网',
+    'yicai.com': '第一财经',
+    'eeo.com.cn': '经济观察报',
+    'wallstreetcn.com': '华尔街见闻',
+    'wsj.com': '华尔街日报',
+    'ft.com': '金融时报',
+    'ftchinese.com': '金融时报中文',
+    'economist.com': '经济学人',
+    'bloomberg.com': '彭博社',
+    'reuters.com': '路透社',
+    'bbc.com': 'BBC',
+    'thepaper.cn': '澎湃新闻',
+    'theblock.com': 'The Block',
+  };
+  
+  for (const [domain, name] of Object.entries(sourceMap)) {
+    if (urlLower.includes(domain)) return name;
+  }
+  
+  return '其他';
 }
 
 // ========== LLM归类 ==========
 async function classifyNewsByTopic(news: NewsItem[], llmClient: LLMClient): Promise<TopicCluster[]> {
   const newsTexts = news
-    .slice(0, 40)
-    .map((item, idx) => `${idx + 1}. [${item.source}] ${item.title}`)
+    .slice(0, 30)
+    .map((item, idx) => {
+      const breaking = item.isBreaking ? '[突发] ' : '';
+      return `${idx + 1}. ${breaking}[${item.source}] ${item.title}\n   ${item.snippet?.substring(0, 100) || ''}`;
+    })
     .join('\n');
 
-  const prompt = `请将以下财经新闻按主题归类，识别重要新闻事件：
+  const prompt = `请将以下财经新闻按主题归类。**重点关注突发事件和重大新闻**：
 
 ${newsTexts}
 
@@ -280,30 +362,32 @@ ${newsTexts}
 {
   "clusters": [
     {
-      "topic": "具体新闻事件（如：美伊冲突升级、茅台业绩发布）",
-      "keywords": ["关键词"],
+      "topic": "具体新闻事件名称（如：美伊战争升级、A股大涨、茅台业绩发布）",
+      "keywords": ["关键词1", "关键词2"],
       "newsCount": 数量,
       "importanceScore": 1-10评分,
-      "news": [{"title": "标题", "source": "来源", "url": "链接"}]
+      "hasBreakingNews": true或false,
+      "news": [{"title": "标题", "source": "来源", "url": "链接", "weightScore": 分数}]
     }
   ]
 }
 
-要求：
-1. 主题必须是具体事件
+**重要规则**：
+1. 突发事件（战争、崩盘、重大政策）必须是独立主题
 2. 每个主题至少2条新闻
-3. 最多8个主题
-4. 按新闻数量排序`;
+3. 主题按重要性和突发性排序
+4. 最多8个主题`;
 
   try {
     const response = await llmClient.invoke([
-      { role: 'system', content: '你是专业的金融新闻分析师，回答必须是JSON。' },
+      { role: 'system', content: '你是专业的金融新闻分析师，回答必须是JSON格式。突发事件和重大新闻应获得更高优先级。' },
       { role: 'user', content: prompt },
     ], { temperature: 0.3 });
 
     const jsonMatch = response.content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]).clusters || [];
+      const result = JSON.parse(jsonMatch[0]);
+      return result.clusters || [];
     }
   } catch (error) {
     console.error('LLM error:', error);
@@ -311,21 +395,26 @@ ${newsTexts}
   return [];
 }
 
-// ========== 历史分析 ==========
-async function analyzeHistoricalEvents(topic: TopicCluster, llmClient: LLMClient) {
-  const prompt = `分析"${topic.topic}"的历史类似事件：
+// ========== 深度分析 ==========
+async function analyzeTopic(topic: TopicCluster, llmClient: LLMClient) {
+  const newsTitles = topic.news.slice(0, 5).map(n => `- ${n.title}`).join('\n');
+  
+  const prompt = `分析"${topic.topic}"这一重大新闻事件：
+
+${newsTitles}
 
 输出JSON：
 {
-  "summary": "当前热点简要分析",
-  "historicalEvents": [{"year": "年份", "event": "事件", "outcome": "结局", "relevance": "相关性"}],
-  "marketImpact": "市场影响分析",
-  "investorAdvice": "投资建议"
+  "summary": "100字内的事件概要",
+  "keyPoints": ["要点1", "要点2", "要点3"],
+  "marketImpact": "对市场的影响",
+  "historicalComparison": "与历史类似事件对比",
+  "tradingAdvice": "交易建议（谨慎/观望/关注）"
 }`;
 
   try {
     const response = await llmClient.invoke([
-      { role: 'system', content: '你是金融市场历史分析师，回答必须是JSON。' },
+      { role: 'system', content: '你是金融市场分析师，回答必须是JSON。' },
       { role: 'user', content: prompt },
     ], { temperature: 0.5 });
 
@@ -336,5 +425,13 @@ async function analyzeHistoricalEvents(topic: TopicCluster, llmClient: LLMClient
   } catch (error) {
     console.error('LLM error:', error);
   }
-  return { topic: topic.topic, summary: '暂无', historicalEvents: [], marketImpact: '暂无', investorAdvice: '谨慎决策' };
+  
+  return { 
+    topic: topic.topic, 
+    summary: '分析生成中...', 
+    keyPoints: [],
+    marketImpact: '暂无',
+    historicalComparison: '暂无',
+    tradingAdvice: '观望'
+  };
 }
