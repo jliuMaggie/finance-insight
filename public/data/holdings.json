@@ -210,6 +210,46 @@
       "value": 2370
     },
     {
+      "investor": "高瓴资本",
+      "symbol": "PDD",
+      "action": "持仓",
+      "percentage": 22.5,
+      "date": "2025-12-31",
+      "value": 8500
+    },
+    {
+      "investor": "高瓴资本",
+      "symbol": "JD",
+      "action": "增持",
+      "percentage": 12.8,
+      "date": "2025-12-31",
+      "value": 4850
+    },
+    {
+      "investor": "高瓴资本",
+      "symbol": "BABA",
+      "action": "持仓",
+      "percentage": 8.5,
+      "date": "2025-12-31",
+      "value": 3220
+    },
+    {
+      "investor": "高瓴资本",
+      "symbol": "BYD",
+      "action": "增持",
+      "percentage": 5.2,
+      "date": "2025-12-31",
+      "value": 1970
+    },
+    {
+      "investor": "高瓴资本",
+      "symbol": "GSX",
+      "action": "减持",
+      "percentage": 3.8,
+      "date": "2025-12-31",
+      "value": 1440
+    },
+    {
       "investor": "红杉资本",
       "symbol": "NVDA",
       "action": "持仓",
