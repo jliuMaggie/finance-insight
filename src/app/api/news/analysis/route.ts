@@ -246,7 +246,12 @@ export async function POST(request: NextRequest) {
       finalResult: {
         topTopic: rankedTopics[0],
         allTopics: rankedTopics,
-        deepAnalysis,
+        historicalAnalysis: deepAnalysis ? {
+          summary: deepAnalysis.summary || '',
+          historicalEvents: deepAnalysis.historicalEvents || [],
+          marketImpact: deepAnalysis.marketImpact || '',
+          investorAdvice: deepAnalysis.investorAdvice || '',
+        } : null,
       },
       summary: {
         totalNews: uniqueNews.length,
@@ -415,18 +420,19 @@ async function analyzeTopic(topic: TopicCluster, llmClient: LLMClient) {
 
 ${newsTitles}
 
-输出JSON：
+输出JSON（字段名必须严格按此格式）：
 {
   "summary": "100字内的事件概要",
-  "keyPoints": ["要点1", "要点2", "要点3"],
-  "marketImpact": "对市场的影响",
-  "historicalComparison": "与历史类似事件对比",
-  "tradingAdvice": "交易建议（谨慎/观望/关注）"
+  "historicalEvents": [
+    {"year": "年份", "event": "事件描述", "outcome": "结局", "relevance": "与当前相关性"}
+  ],
+  "marketImpact": "对市场的影响分析",
+  "investorAdvice": "给投资者的建议"
 }`;
 
   try {
     const response = await llmClient.invoke([
-      { role: 'system', content: '你是金融市场分析师，回答必须是JSON。' },
+      { role: 'system', content: '你是金融市场分析师，回答必须是JSON，字段名必须严格按要求。' },
       { role: 'user', content: prompt },
     ], { temperature: 0.5 });
 
@@ -441,9 +447,8 @@ ${newsTitles}
   return { 
     topic: topic.topic, 
     summary: '分析生成中...', 
-    keyPoints: [],
+    historicalEvents: [],
     marketImpact: '暂无',
-    historicalComparison: '暂无',
-    tradingAdvice: '观望'
+    investorAdvice: '观望'
   };
 }
