@@ -100,7 +100,6 @@ export async function POST(request: NextRequest) {
     steps[0].status = 'running';
     
     const allNews: NewsItem[] = [];
-    const scrapedSources: { name: string; count: number }[] = [];
     
     // 第一轮：财经关键词搜索
     const financeQueries = [
@@ -136,25 +135,10 @@ export async function POST(request: NextRequest) {
         });
 
         if (response.web_items && response.web_items.length > 0) {
-          // 统计来源
-          const sourceCount: Record<string, number> = {};
-          response.web_items.forEach((item) => {
-            const source = item.site_name || extractSourceFromUrl(item.url || '');
-            sourceCount[source] = (sourceCount[source] || 0) + 1;
-          });
-          Object.entries(sourceCount).forEach(([name, count]) => {
-            const existing = scrapedSources.find(s => s.name === name);
-            if (existing) {
-              existing.count += count;
-            } else {
-              scrapedSources.push({ name, count });
-            }
-          });
-          
           return response.web_items.map((item) => ({
             title: item.title || '',
             url: item.url || '',
-            source: item.site_name || extractSourceFromUrl(item.url || ''),
+            source: item.site_name || extractSourceFromUrl(item.url),
             publishTime: item.publish_time,
             snippet: item.snippet || '',
             weightScore: calculateWeight(item.title || '', item.snippet || ''),
@@ -182,8 +166,6 @@ export async function POST(request: NextRequest) {
     steps[0].data = {
       totalCount: filteredNews.length,
       topNews: filteredNews.slice(0, 10).map(n => n.title),
-      sources: scrapedSources.sort((a, b) => b.count - a.count),
-      queryCount: allQueries.length,
     };
 
     console.log(`步骤1完成：爬取到 ${filteredNews.length} 条有效新闻`);
