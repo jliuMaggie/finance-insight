@@ -83,24 +83,33 @@ export async function POST(request: NextRequest) {
     
     const allNews: NewsItem[] = [];
     const usedTitles = new Set<string>();
+    const usedContentHashes = new Set<string>();
     
-    // 策略：多维度搜索，覆盖不同类型的热点
+    // 计算标题指纹（去除数字和常见词）
+    function getTitleFingerprint(title: string): string {
+      return title
+        .toLowerCase()
+        .replace(/\d+/g, '#')  // 数字统一替换
+        .replace(/[特朗普|关税|行政令|签署|最新|今日|2025]/g, '')  // 去除常见词
+        .replace(/\s+/g, '')
+        .substring(0, 30);
+    }
+    
+    // 策略：多维度搜索，严格限制最新时间
     const searchQueries = [
       // 地缘政治（最高优先级）
-      { query: '美国 伊朗 战争 最新 2025', weight: 15 },
-      { query: '中东局势 冲突 最新 今日', weight: 15 },
-      { query: '美伊 协议 谈判 2025', weight: 12 },
-      { query: '石油 油价 最新 波动', weight: 10 },
+      { query: '美国 伊朗 中东 冲突 最新 今日 2025', timeRange: '1d', weight: 15 },
+      { query: '中东局势 战争 最新 今日', timeRange: '1d', weight: 15 },
       
-      // 重大政策
-      { query: '特朗普 关税 最新 2025', weight: 12 },
-      { query: '央行 美联储 利率 决策', weight: 10 },
+      // 重大政策（严格限制时间）
+      { query: '特朗普 关税 最新 今日 2025', timeRange: '1d', weight: 12 },
+      { query: '中美 贸易 关税 最新 2025', timeRange: '1d', weight: 10 },
       
       // 科技突破
-      { query: 'AI 芯片 突破 最新', weight: 8 },
+      { query: 'AI 芯片 突破 最新 今日', timeRange: '1d', weight: 8 },
       
-      // 搜索各媒体首页
-      { query: 'site:huxiu.com OR site:36kr.com OR site:caixin.com OR site:jiemian.com OR site:wallstreetcn.com 今日 头条', weight: 8 },
+      // 搜索各媒体首页（最新）
+      { query: 'site:huxiu.com OR site:36kr.com OR site:caixin.com OR site:jiemian.com OR site:wallstreetcn.com 今日 最新', timeRange: '1d', weight: 8 },
     ];
 
     for (const searchParams of searchQueries) {
@@ -108,7 +117,7 @@ export async function POST(request: NextRequest) {
         const response = await searchClient.advancedSearch(searchParams.query, {
           searchType: 'web',
           count: 15,
-          timeRange: '1d',
+          timeRange: (searchParams as any).timeRange || '1d',
           needSummary: true,
           needUrl: true,
         });
@@ -119,9 +128,11 @@ export async function POST(request: NextRequest) {
             const url = item.url || '';
             const snippet = item.snippet || '';
             
-            // 去重（相同标题）
+            // 去重（相同标题指纹）
             const titleKey = title.toLowerCase().replace(/\s+/g, '');
-            if (usedTitles.has(titleKey)) continue;
+            const fingerprint = getTitleFingerprint(title);
+            
+            if (usedTitles.has(titleKey) || usedContentHashes.has(fingerprint)) continue;
             if (!title || title.length < 8) continue;
             
             // 计算权重
@@ -144,6 +155,7 @@ export async function POST(request: NextRequest) {
             });
             
             usedTitles.add(titleKey);
+            usedContentHashes.add(fingerprint);
           }
         }
       } catch (error) {
