@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
 
     let deepAnalysis = null;
     if (rankedTopics[0]) {
-      deepAnalysis = await analyzeTopic(rankedTopics[0], llmClient);
+      deepAnalysis = await analyzeTopic(rankedTopics[0], llmClient, searchClient);
     }
 
     steps[3].status = 'completed';
@@ -413,27 +413,49 @@ ${newsTexts}
 }
 
 // ========== 深度分析 ==========
-async function analyzeTopic(topic: TopicCluster, llmClient: LLMClient) {
+async function analyzeTopic(topic: TopicCluster, llmClient: LLMClient, searchClient: SearchClient) {
   const newsTitles = topic.news.slice(0, 5).map(n => `- ${n.title}`).join('\n');
   
-  const prompt = `分析"${topic.topic}"这一重大新闻事件：
+  // 首先让LLM识别历史类似事件
+  const analysisPrompt = `分析"${topic.topic}"这一重大新闻事件，找出历史上类似的事件。
 
-${newsTitles}
-
-输出JSON（字段名必须严格按此格式）：
-{
-  "summary": "100字内的事件概要",
-  "historicalEvents": [
-    {"year": "年份", "event": "事件描述", "outcome": "结局", "relevance": "与当前相关性"}
-  ],
-  "marketImpact": "对市场的影响分析",
-  "investorAdvice": "给投资者的建议"
-}`;
+  输出JSON（字段名必须严格按此格式）：
+  {
+    "summary": "100字内的事件概要",
+    "historicalEvents": [
+      {
+        "year": "年份",
+        "event": "事件描述",
+        "outcome": "结局",
+        "relevance": "与当前相关性",
+        "assetImpact": {
+          "name": "资产名称",
+          "shortTerm": {"change": "变化幅度如+15%", "duration": "1个月内", "description": "描述"},
+          "midTerm": {"change": "变化幅度如+8%", "duration": "6个月内", "description": "描述"},
+          "longTerm": {"change": "变化幅度如-5%", "duration": "2年内", "description": "描述"}
+        }
+      }
+    ],
+    "marketImpact": "对市场的影响分析",
+    "investorAdvice": "给投资者的建议"
+  }`;
 
   try {
+    // 先搜索历史数据
+    const eventKeywords = topic.keywords.slice(0, 3).join(' ');
+    const historicalSearch = await searchClient.advancedSearch(
+      `${eventKeywords} 历史 资产价格 变化 数据`,
+      { searchType: 'web_summary', count: 10, timeRange: '', needSummary: true }
+    );
+    
+    const historicalData = historicalSearch.web_items?.map(item => 
+      `${item.title}: ${item.snippet}`.substring(0, 200)
+    ).join('\n') || '';
+
+    // 调用LLM分析
     const response = await llmClient.invoke([
-      { role: 'system', content: '你是金融市场分析师，回答必须是JSON，字段名必须严格按要求。' },
-      { role: 'user', content: prompt },
+      { role: 'system', content: '你是金融市场历史数据分析师，回答必须是JSON，字段名必须严格按要求。必须包含资产短期/中期/长期的具体价格变化数据。' },
+      { role: 'user', content: `当前热点：${topic.topic}\n\n相关新闻：\n${newsTitles}\n\n历史数据参考：\n${historicalData}\n\n请分析并输出JSON：` + analysisPrompt },
     ], { temperature: 0.5 });
 
     const jsonMatch = response.content.match(/\{[\s\S]*\}/);

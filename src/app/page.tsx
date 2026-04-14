@@ -36,6 +36,12 @@ interface HistoricalEvent {
   event: string;
   outcome: string;
   relevance: string;
+  assetImpact?: {
+    name: string;
+    shortTerm: { change: string; duration: string; description: string };
+    midTerm: { change: string; duration: string; description: string };
+    longTerm: { change: string; duration: string; description: string };
+  };
 }
 
 interface AnalysisStep {
@@ -145,6 +151,35 @@ export default function FinanceInsightPage() {
       default:
         return <Circle className="h-5 w-5 text-muted-foreground" />;
     }
+  };
+
+  // 生成迷你柱状图
+  const generateMiniBar = (change: string, period: string) => {
+    const changeNum = parseFloat(change.replace(/[+%]/g, '')) || 0;
+    const bars = [];
+    const barCount = 5;
+    
+    // 根据变化幅度计算柱状图高度
+    for (let i = 0; i < barCount; i++) {
+      const baseHeight = 10;
+      const variance = Math.abs(changeNum) / barCount;
+      const height = baseHeight + variance * (i + 1);
+      const maxHeight = 40;
+      const finalHeight = Math.min(height, maxHeight);
+      
+      const colorClass = change.startsWith('+') 
+        ? (period === 'short' ? 'bg-red-400' : period === 'mid' ? 'bg-amber-400' : 'bg-blue-400')
+        : (period === 'short' ? 'bg-green-400' : period === 'mid' ? 'bg-emerald-400' : 'bg-cyan-400');
+      
+      bars.push(
+        <div 
+          key={i}
+          className={cn("w-3 rounded-t transition-all", colorClass)}
+          style={{ height: `${finalHeight}px` }}
+        />
+      );
+    }
+    return bars;
   };
 
   return (
@@ -417,28 +452,95 @@ export default function FinanceInsightPage() {
                         <div>
                           <h4 className="font-semibold mb-4 flex items-center gap-2">
                             <Clock className="h-4 w-4" />
-                            历史类似事件
+                            历史类似事件及资产影响
                           </h4>
-                          <div className="space-y-4">
+                          <div className="space-y-6">
                             {analysisResult.historicalAnalysis.historicalEvents.map((event, idx) => (
-                              <div key={idx} className="flex gap-4">
-                                <div className="flex-shrink-0">
-                                  <div className="w-16 text-center">
-                                    <span className="text-sm font-bold text-purple-600 dark:text-purple-400">
+                              <div key={idx} className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                <div className="flex gap-4 mb-4">
+                                  <div className="flex-shrink-0">
+                                    <span className="text-lg font-bold text-purple-600 dark:text-purple-400">
                                       {event.year}
                                     </span>
                                   </div>
-                                  <div className="w-px h-full bg-purple-200 dark:bg-purple-800 mt-2" />
+                                  <div className="flex-1">
+                                    <p className="font-medium mb-1">{event.event}</p>
+                                    <p className="text-sm text-muted-foreground mb-1">
+                                      <span className="font-medium">结局：</span>{event.outcome}
+                                    </p>
+                                    <p className="text-xs text-purple-600 dark:text-purple-400">
+                                      与当前相关性：{event.relevance}
+                                    </p>
+                                  </div>
                                 </div>
-                                <div className="flex-1 pb-4">
-                                  <p className="font-medium mb-1">{event.event}</p>
-                                  <p className="text-sm text-muted-foreground mb-2">
-                                    <span className="font-medium">结局：</span>{event.outcome}
-                                  </p>
-                                  <p className="text-xs text-purple-600 dark:text-purple-400">
-                                    与当前相关性：{event.relevance}
-                                  </p>
-                                </div>
+                                
+                                {/* 资产变化图表 */}
+                                {event.assetImpact && (
+                                  <div className="mt-4 p-4 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600">
+                                    <h5 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                                      <BarChart3 className="h-4 w-4 text-orange-600" />
+                                      {event.assetImpact.name} 资产变化
+                                    </h5>
+                                    <div className="grid grid-cols-3 gap-4">
+                                      {/* 短期 */}
+                                      <div className="text-center p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
+                                        <div className="text-xs text-muted-foreground mb-1">短期</div>
+                                        <div className="text-xs text-muted-foreground mb-1">({event.assetImpact.shortTerm.duration})</div>
+                                        <div className={cn(
+                                          "text-xl font-bold",
+                                          event.assetImpact.shortTerm.change.startsWith('+') ? "text-red-600" : "text-green-600"
+                                        )}>
+                                          {event.assetImpact.shortTerm.change}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                          {event.assetImpact.shortTerm.description}
+                                        </div>
+                                        {/* 迷你柱状图 */}
+                                        <div className="mt-2 flex items-end justify-center gap-1 h-12">
+                                          {generateMiniBar(event.assetImpact.shortTerm.change, 'short')}
+                                        </div>
+                                      </div>
+                                      
+                                      {/* 中期 */}
+                                      <div className="text-center p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                                        <div className="text-xs text-muted-foreground mb-1">中期</div>
+                                        <div className="text-xs text-muted-foreground mb-1">({event.assetImpact.midTerm.duration})</div>
+                                        <div className={cn(
+                                          "text-xl font-bold",
+                                          event.assetImpact.midTerm.change.startsWith('+') ? "text-amber-600" : "text-emerald-600"
+                                        )}>
+                                          {event.assetImpact.midTerm.change}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                          {event.assetImpact.midTerm.description}
+                                        </div>
+                                        {/* 迷你柱状图 */}
+                                        <div className="mt-2 flex items-end justify-center gap-1 h-12">
+                                          {generateMiniBar(event.assetImpact.midTerm.change, 'mid')}
+                                        </div>
+                                      </div>
+                                      
+                                      {/* 长期 */}
+                                      <div className="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                                        <div className="text-xs text-muted-foreground mb-1">长期</div>
+                                        <div className="text-xs text-muted-foreground mb-1">({event.assetImpact.longTerm.duration})</div>
+                                        <div className={cn(
+                                          "text-xl font-bold",
+                                          event.assetImpact.longTerm.change.startsWith('+') ? "text-blue-600" : "text-cyan-600"
+                                        )}>
+                                          {event.assetImpact.longTerm.change}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                          {event.assetImpact.longTerm.description}
+                                        </div>
+                                        {/* 迷你柱状图 */}
+                                        <div className="mt-2 flex items-end justify-center gap-1 h-12">
+                                          {generateMiniBar(event.assetImpact.longTerm.change, 'long')}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
