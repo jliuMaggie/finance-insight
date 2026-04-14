@@ -14,9 +14,9 @@ export interface Investor {
 
 export const INVESTORS: Investor[] = [
   {
-    name: '沃伦·巴菲特',
-    type: 'individual',
-    description: '伯克希尔·哈撒韦公司CEO，被誉为"股神"，价值投资的代表人物。2024年福布斯全球富豪榜排名第10位，净资产约1180亿美元。',
+    name: '伯克希尔·哈撒韦',
+    type: 'institution',
+    description: '伯克希尔·哈撒韦公司，由沃伦·巴菲特执掌，被誉为"股神"，价值投资的代表人物。2024年福布斯全球富豪榜排名第10位，净资产约1180亿美元。',
     investmentStyle: '价值投资 · 长期持有 · 优质企业',
     holdingRatio: '集中持仓，重仓前5大公司占比约70-80%',
   },
@@ -28,13 +28,6 @@ export const INVESTORS: Investor[] = [
     holdingRatio: '极度集中，重仓股票占比超过80%',
   },
   {
-    name: '李录',
-    type: 'individual',
-    description: '喜马拉雅资本创始人，芒格家族基金管理人。深度价值投资者，专注于中国和美国的优秀企业。是芒格的亲密伙伴和思想传承者。',
-    investmentStyle: '深度价值 · 宏观视野 · 跨境投资',
-    holdingRatio: '高度集中，前3大持仓占比约60-70%',
-  },
-  {
     name: '但斌',
     type: 'individual',
     description: '东方港湾投资董事长，中国最知名的价值投资践行者之一。长期看好中国优质企业，以重仓茅台、腾讯等企业著称。',
@@ -42,9 +35,9 @@ export const INVESTORS: Investor[] = [
     holdingRatio: '集中持仓，核心持仓占比约50-60%',
   },
   {
-    name: '詹姆斯·西蒙斯',
-    type: 'individual',
-    description: '文艺复兴科技创始人，量化投资之父。数学家出身，创立了量化交易的传奇。旗下大奖章基金年化收益率超过66%。',
+    name: '文艺复兴科技',
+    type: 'institution',
+    description: '文艺复兴科技公司，由詹姆斯·西蒙斯创立，量化投资之父。数学家出身，旗下大奖章基金年化收益率超过66%，是量化交易的传奇。',
     investmentStyle: '量化投资 · 数学模型 · 短线交易',
     holdingRatio: '分散持仓，持有数百只股票，单一持仓占比低于2%',
   },

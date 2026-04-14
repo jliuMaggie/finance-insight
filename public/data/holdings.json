@@ -2,7 +2,7 @@
   "lastUpdated": "2026-04-14",
   "holdings": [
     {
-      "investor": "巴菲特",
+      "investor": "伯克希尔·哈撒韦",
       "symbol": "AAPL",
       "action": "持仓",
       "percentage": 28.5,
@@ -10,7 +10,7 @@
       "value": 91500
     },
     {
-      "investor": "巴菲特",
+      "investor": "伯克希尔·哈撒韦",
       "symbol": "BAC",
       "action": "减持",
       "percentage": 8.2,
@@ -18,7 +18,7 @@
       "value": 26300
     },
     {
-      "investor": "巴菲特",
+      "investor": "伯克希尔·哈撒韦",
       "symbol": "KO",
       "action": "持仓",
       "percentage": 6.8,
@@ -26,7 +26,7 @@
       "value": 21800
     },
     {
-      "investor": "巴菲特",
+      "investor": "伯克希尔·哈撒韦",
       "symbol": "AXP",
       "action": "增持",
       "percentage": 4.5,
@@ -34,7 +34,7 @@
       "value": 14400
     },
     {
-      "investor": "巴菲特",
+      "investor": "伯克希尔·哈撒韦",
       "symbol": "OXY",
       "action": "增持",
       "percentage": 3.2,
@@ -42,20 +42,44 @@
       "value": 10200
     },
     {
-      "investor": "芒格",
-      "symbol": "BABA",
+      "investor": "文艺复兴科技",
+      "symbol": "MSFT",
       "action": "持仓",
-      "percentage": 45.0,
+      "percentage": 8.5,
       "date": "2025-12-31",
-      "value": 7500
+      "value": 8500
     },
     {
-      "investor": "芒格",
-      "symbol": "BIDU",
+      "investor": "文艺复兴科技",
+      "symbol": "NVDA",
       "action": "增持",
-      "percentage": 12.5,
+      "percentage": 6.2,
       "date": "2025-12-31",
-      "value": 2100
+      "value": 6200
+    },
+    {
+      "investor": "文艺复兴科技",
+      "symbol": "GOOGL",
+      "action": "持仓",
+      "percentage": 5.8,
+      "date": "2025-12-31",
+      "value": 5800
+    },
+    {
+      "investor": "文艺复兴科技",
+      "symbol": "AMZN",
+      "action": "买入",
+      "percentage": 4.5,
+      "date": "2025-12-31",
+      "value": 4500
+    },
+    {
+      "investor": "文艺复兴科技",
+      "symbol": "AAPL",
+      "action": "减持",
+      "percentage": 3.2,
+      "date": "2025-12-31",
+      "value": 3200
     },
     {
       "investor": "段永平",
@@ -82,46 +106,6 @@
       "value": 2750
     },
     {
-      "investor": "张磊",
-      "symbol": "PDD",
-      "action": "增持",
-      "percentage": 22.5,
-      "date": "2025-12-31",
-      "value": 8500
-    },
-    {
-      "investor": "张磊",
-      "symbol": "JD",
-      "action": "减持",
-      "percentage": 8.8,
-      "date": "2025-12-31",
-      "value": 3320
-    },
-    {
-      "investor": "张磊",
-      "symbol": "BIDU",
-      "action": "持仓",
-      "percentage": 6.5,
-      "date": "2025-12-31",
-      "value": 2450
-    },
-    {
-      "investor": "沈南鹏",
-      "symbol": "PDD",
-      "action": "增持",
-      "percentage": 15.2,
-      "date": "2025-12-31",
-      "value": 5750
-    },
-    {
-      "investor": "沈南鹏",
-      "symbol": "MEITUAN",
-      "action": "减持",
-      "percentage": 5.8,
-      "date": "2025-12-31",
-      "value": 2200
-    },
-    {
       "investor": "但斌",
       "symbol": "TSLA",
       "action": "增持",
@@ -144,22 +128,6 @@
       "percentage": 12.5,
       "date": "2025-12-31",
       "value": 6080
-    },
-    {
-      "investor": "林园",
-      "symbol": "600519",
-      "action": "持仓",
-      "percentage": 42.5,
-      "date": "2025-12-31",
-      "value": 12800
-    },
-    {
-      "investor": "林园",
-      "symbol": "000858",
-      "action": "增持",
-      "percentage": 15.8,
-      "date": "2025-12-31",
-      "value": 4760
     },
     {
       "investor": "贝莱德",
