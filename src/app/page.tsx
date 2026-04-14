@@ -5,79 +5,80 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RefreshCw, TrendingUp, DollarSign, Brain, Calendar, User, Building2, Info, Star, Newspaper, Globe, Link2, ExternalLink } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { 
+  Brain, DollarSign, Newspaper, Globe, Link2, ExternalLink, Info,
+  RefreshCw, CheckCircle2, Circle, Loader2, AlertCircle, 
+  TrendingUp, BarChart3, Clock, BookOpen, ArrowRight
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { INVESTORS, Investor } from '@/lib/investors';
 
 interface NewsItem {
-  id: string;
-  rank: number;
-  aiTitle: string;
-  originalTitle: string;
-  summary: string;
+  title: string;
   url: string;
+  source: string;
   publishTime?: string;
-  source?: string;
-  importanceScore?: number;
+  snippet?: string;
 }
 
-interface HoldingChange {
-  investor: string;
-  symbol: string;
-  action: '买入' | '增持' | '减持' | '卖出' | '持仓';
-  percentage: number;
-  date: string;
-  value?: number;
+interface TopicCluster {
+  topic: string;
+  keywords: string[];
+  newsCount: number;
+  news: NewsItem[];
+  importanceScore: number;
+  hotScore?: number;
+}
+
+interface HistoricalEvent {
+  year: string;
+  event: string;
+  outcome: string;
+  relevance: string;
+}
+
+interface AnalysisStep {
+  step: number;
+  stepName: string;
+  status: 'pending' | 'running' | 'completed' | 'error';
+  data?: any;
+  error?: string;
+}
+
+interface AnalysisResult {
+  topTopic: TopicCluster;
+  allTopics: TopicCluster[];
+  historicalAnalysis: {
+    topic: string;
+    summary: string;
+    historicalEvents: HistoricalEvent[];
+    marketImpact: string;
+    investorAdvice: string;
+  };
 }
 
 export default function FinanceInsightPage() {
-  const [news, setNews] = useState<NewsItem[]>([]);
-  const [newsLoading, setNewsLoading] = useState(false);
-  const [timeRange, setTimeRange] = useState<'12h' | '24h' | '36h' | '48h'>('24h');
-  const [newsCache, setNewsCache] = useState<Record<string, NewsItem[]>>({});
-  const [lastUpdated, setLastUpdated] = useState<Record<string, string>>({});
+  // 新闻分析状态
+  const [analysisSteps, setAnalysisSteps] = useState<AnalysisStep[]>([
+    { step: 1, stepName: '爬取新闻', status: 'pending' },
+    { step: 2, stepName: '主题归类', status: 'pending' },
+    { step: 3, stepName: '热度排序', status: 'pending' },
+    { step: 4, stepName: '历史分析', status: 'pending' },
+  ]);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
-  const [holdings, setHoldings] = useState<HoldingChange[]>([]);
+  // 持仓状态
+  const [holdings, setHoldings] = useState<any[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
   const [holdingsLastUpdated, setHoldingsLastUpdated] = useState<string>('');
 
-  useEffect(() => {
-    loadNews();
-  }, [timeRange]);
-
+  // 加载持仓数据
   useEffect(() => {
     loadHoldings();
   }, []);
-
-  const loadNews = async (forceRefresh = false) => {
-    if (!forceRefresh && newsCache[timeRange] && newsCache[timeRange].length > 0) {
-      setNews(newsCache[timeRange]);
-      setNewsLoading(false);
-      return;
-    }
-
-    try {
-      setNewsLoading(true);
-      const url = forceRefresh 
-        ? `/api/news?timeRange=${timeRange}&refresh=true`
-        : `/api/news?timeRange=${timeRange}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to load news');
-      const data = await response.json();
-      
-      if (data.news && data.news.length > 0) {
-        setNewsCache(prev => ({ ...prev, [timeRange]: data.news }));
-        setLastUpdated(prev => ({ ...prev, [timeRange]: data.lastUpdated }));
-      }
-      
-      setNews(data.news || []);
-    } catch (error) {
-      console.error('Error loading news:', error);
-      setNews([]);
-    } finally {
-      setNewsLoading(false);
-    }
-  };
 
   const loadHoldings = async () => {
     try {
@@ -95,6 +96,57 @@ export default function FinanceInsightPage() {
     }
   };
 
+  // 开始新闻分析
+  const startAnalysis = async () => {
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    
+    // 重置步骤状态
+    setAnalysisSteps([
+      { step: 1, stepName: '爬取新闻', status: 'pending' },
+      { step: 2, stepName: '主题归类', status: 'pending' },
+      { step: 3, stepName: '热度排序', status: 'pending' },
+      { step: 4, stepName: '历史分析', status: 'pending' },
+    ]);
+    setAnalysisResult(null);
+
+    try {
+      const response = await fetch('/api/news/analysis', { method: 'POST' });
+      const data = await response.json();
+
+      if (data.success) {
+        setAnalysisSteps(data.steps);
+        setAnalysisResult(data.finalResult);
+      } else {
+        setAnalysisError(data.error || '分析失败');
+        setAnalysisSteps(data.steps);
+      }
+    } catch (error) {
+      console.error('Analysis error:', error);
+      setAnalysisError('网络请求失败');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // 计算进度
+  const completedSteps = analysisSteps.filter((s) => s.status === 'completed').length;
+  const progressPercent = (completedSteps / 4) * 100;
+
+  // 获取步骤图标
+  const getStepIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />;
+      case 'running':
+        return <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin" />;
+      case 'error':
+        return <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />;
+      default:
+        return <Circle className="h-5 w-5 text-muted-foreground" />;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
       {/* Header */}
@@ -108,180 +160,330 @@ export default function FinanceInsightPage() {
                   金融智能洞察
                 </h1>
                 <p className="text-xs text-muted-foreground">
-                  实时金融新闻与投资大佬持仓追踪
+                  智能分析财经热点与历史规律
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="gap-1">
-                <TrendingUp className="h-3 w-3" />
-                24小时实时更新
-              </Badge>
-            </div>
+            <Badge variant="outline" className="gap-1">
+              <Clock className="h-3 w-3" />
+              每日智能分析
+            </Badge>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
-        <Tabs defaultValue="news" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
-            <TabsTrigger value="news" className="gap-2">
-              <TrendingUp className="h-4 w-4" />
-              金融新闻
+        <Tabs defaultValue="analysis" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+            <TabsTrigger value="analysis" className="gap-2">
+              <Brain className="h-4 w-4" />
+              智能分析
             </TabsTrigger>
             <TabsTrigger value="holdings" className="gap-2">
               <DollarSign className="h-4 w-4" />
               持仓变动
             </TabsTrigger>
-            <TabsTrigger value="media" className="gap-2">
-              <Newspaper className="h-4 w-4" />
-              媒体导航
-            </TabsTrigger>
           </TabsList>
 
-          {/* News Tab */}
-          <TabsContent value="news" className="space-y-4">
-            <Card>
-              <CardHeader>
+          {/* 智能分析 Tab */}
+          <TabsContent value="analysis" className="space-y-6">
+            {/* 分析控制卡片 */}
+            <Card className="border-2 border-blue-200 dark:border-blue-800">
+              <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      重要金融事件（TOP 20）
+                      财经热点智能分析
                     </CardTitle>
                     <CardDescription>
-                      基于豆包AI联网搜索的国内外重大金融新闻
+                      AI驱动的四步分析：爬取 → 归类 → 排序 → 历史回顾
                     </CardDescription>
                   </div>
                   <Button
-                    onClick={() => {
-                      setNewsLoading(true);
-                      loadNews(true);
-                    }}
-                    disabled={newsLoading}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
+                    onClick={startAnalysis}
+                    disabled={isAnalyzing}
+                    className="gap-2 bg-blue-600 hover:bg-blue-700"
                   >
-                    <RefreshCw className={cn("h-4 w-4", newsLoading && "animate-spin")} />
-                    刷新
+                    {isAnalyzing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        分析中...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4" />
+                        开始分析
+                      </>
+                    )}
                   </Button>
                 </div>
-                <div className="flex items-center gap-2 mt-4">
-                  <span className="text-sm text-muted-foreground">查看时段：</span>
-                  <div className="flex gap-2">
-                    {(['12h', '24h', '36h', '48h'] as const).map((range) => (
-                      <button
-                        key={range}
-                        onClick={() => setTimeRange(range)}
-                        className={cn(
-                          "px-3 py-1.5 text-sm rounded-md transition-colors relative",
-                          timeRange === range
-                            ? "bg-blue-600 text-white hover:bg-blue-700"
-                            : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                        )}
-                        title={newsCache[range] ? `已缓存 (${lastUpdated[range] ? new Date(lastUpdated[range]).toLocaleTimeString() : ''})` : '点击加载'}
-                      >
-                        {range}
-                        {newsCache[range] && (
-                          <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" title="已缓存" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  {lastUpdated[timeRange] && (
-                    <Badge variant="outline" className="text-xs ml-2">
-                      更新于 {new Date(lastUpdated[timeRange]).toLocaleTimeString()}
-                    </Badge>
-                  )}
-                </div>
               </CardHeader>
+
+              {/* 步骤进度 */}
               <CardContent>
-                {newsLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-center">
-                      <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-blue-600 dark:text-blue-400" />
-                      <p className="text-sm text-muted-foreground">正在加载新闻...</p>
-                    </div>
+                {/* 进度条 */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">分析进度</span>
+                    <span className="text-sm text-muted-foreground">
+                      {completedSteps}/4 步骤完成
+                    </span>
                   </div>
-                ) : news.length === 0 ? (
-                  <div className="text-center py-12">
-                    <TrendingUp className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
-                    <p className="text-muted-foreground mb-4">暂无新闻数据</p>
-                    <p className="text-sm text-muted-foreground">请点击上方"刷新"按钮获取最新新闻</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {news.map((item, index) => (
-                      <a
-                        key={item.id}
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block"
-                      >
-                        <Card className={cn(
-                          "transition-all hover:shadow-md cursor-pointer h-full",
-                          index < 3 && "border-l-4 border-l-blue-500 dark:border-l-blue-400"
+                  <Progress value={progressPercent} className="h-2" />
+                </div>
+
+                {/* 步骤列表 */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {analysisSteps.map((step) => (
+                    <div
+                      key={step.step}
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-lg border transition-all",
+                        step.status === 'running' && "bg-blue-50 dark:bg-blue-950/30 border-blue-300 dark:border-blue-700",
+                        step.status === 'completed' && "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800",
+                        step.status === 'error' && "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800",
+                        step.status === 'pending' && "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                      )}
+                    >
+                      {getStepIcon(step.status)}
+                      <div className="flex-1 min-w-0">
+                        <p className={cn(
+                          "text-sm font-medium truncate",
+                          step.status === 'completed' && "text-green-700 dark:text-green-400",
+                          step.status === 'running' && "text-blue-700 dark:text-blue-400",
+                          step.status === 'error' && "text-red-700 dark:text-red-400"
                         )}>
-                          <CardContent className="pt-4">
-                            <div className="flex items-start gap-3">
-                              <div className={cn(
-                                "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-sm",
-                                index < 3 ? "bg-blue-600 dark:bg-blue-400" : "bg-slate-600 dark:bg-slate-400"
-                              )}>
-                                {item.rank}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-base line-clamp-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mb-2">
-                                  {item.aiTitle}
-                                </h3>
-                                <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
-                                  {item.originalTitle}
-                                </p>
-                                <p className="text-sm text-foreground mb-3 line-clamp-3 leading-relaxed">
-                                  {item.summary}
-                                </p>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {item.source && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      {item.source}
-                                    </Badge>
-                                  )}
-                                  {item.publishTime && (
-                                    <Badge variant="outline" className="text-xs gap-1">
-                                      <Calendar className="h-3 w-3" />
-                                      {item.publishTime}
-                                    </Badge>
-                                  )}
-                                  {item.importanceScore && (
-                                    <Badge 
-                                      variant="outline" 
-                                      className={cn(
-                                        "text-xs gap-1",
-                                        item.importanceScore >= 8 ? "border-red-500 text-red-600 dark:text-red-400" :
-                                        item.importanceScore >= 6 ? "border-orange-500 text-orange-600 dark:text-orange-400" :
-                                        "border-blue-500 text-blue-600 dark:text-blue-400"
-                                      )}
-                                    >
-                                      {item.importanceScore >= 8 ? '★' : item.importanceScore >= 6 ? '★★' : '★'}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </a>
-                    ))}
+                          步骤{step.step}: {step.stepName}
+                        </p>
+                        {step.status === 'completed' && step.data && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {step.step === 1 && `已爬取 ${step.data.totalCount} 条新闻`}
+                            {step.step === 2 && `归类为 ${step.data.clustersCount} 个主题`}
+                            {step.step === 3 && `共 ${step.data.totalTopics} 个主题`}
+                            {step.step === 4 && '分析完成'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 错误信息 */}
+                {analysisError && (
+                  <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
+                    <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      {analysisError}
+                    </p>
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* 分析结果展示 */}
+            {analysisResult && (
+              <>
+                {/* 热度排名 TOP 主题 */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                      热度排名 TOP 主题
+                    </CardTitle>
+                    <CardDescription>
+                      基于新闻覆盖量和媒体关注度的综合排名
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {analysisResult.allTopics.slice(0, 10).map((topic, idx) => (
+                        <div
+                          key={idx}
+                          className={cn(
+                            "flex items-center gap-4 p-4 rounded-lg border transition-all hover:shadow-md",
+                            idx === 0 && "bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800"
+                          )}
+                        >
+                          <div className={cn(
+                            "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white",
+                            idx === 0 ? "bg-orange-500" : idx === 1 ? "bg-slate-500" : idx === 2 ? "bg-amber-600" : "bg-slate-400"
+                          )}>
+                            {idx + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-lg">{topic.topic}</h3>
+                              {idx === 0 && (
+                                <Badge variant="destructive" className="text-xs animate-pulse">
+                                  TOP 1
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {topic.keywords.map((kw, i) => (
+                                <Badge key={i} variant="secondary" className="text-xs">
+                                  {kw}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                              {topic.newsCount}
+                            </div>
+                            <div className="text-xs text-muted-foreground">条新闻</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* TOP 1 主题详情 */}
+                {analysisResult.topTopic && (
+                  <Card className="border-2 border-orange-300 dark:border-orange-700">
+                    <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30">
+                      <CardTitle className="flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                        TOP 1 热点：{analysisResult.topTopic.topic}
+                      </CardTitle>
+                      <CardDescription>
+                        共 {analysisResult.topTopic.newsCount} 条相关新闻，覆盖 {analysisResult.topTopic.keywords.join(', ')}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {analysisResult.topTopic.news.map((item: NewsItem, idx: number) => (
+                          <a
+                            key={idx}
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-start gap-3 p-3 rounded-lg border hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                          >
+                            <Badge variant="outline" className="flex-shrink-0 mt-0.5">
+                              {item.source}
+                            </Badge>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm line-clamp-2 hover:text-blue-600 dark:hover:text-blue-400">
+                                {item.title}
+                              </p>
+                              {item.snippet && (
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                                  {item.snippet}
+                                </p>
+                              )}
+                            </div>
+                            <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                          </a>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* 历史事件分析 */}
+                {analysisResult.historicalAnalysis && (
+                  <Card className="border-2 border-purple-200 dark:border-purple-800">
+                    <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30">
+                      <CardTitle className="flex items-center gap-2">
+                        <BookOpen className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                        历史事件对比分析
+                      </CardTitle>
+                      <CardDescription>
+                        基于&quot;{analysisResult.topTopic?.topic}&quot;搜索历史类似事件
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6 pt-4">
+                      {/* 分析摘要 */}
+                      <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <Info className="h-4 w-4" />
+                          热点分析
+                        </h4>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {analysisResult.historicalAnalysis.summary}
+                        </p>
+                      </div>
+
+                      {/* 历史事件时间线 */}
+                      {analysisResult.historicalAnalysis.historicalEvents.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold mb-4 flex items-center gap-2">
+                            <Clock className="h-4 w-4" />
+                            历史类似事件
+                          </h4>
+                          <div className="space-y-4">
+                            {analysisResult.historicalAnalysis.historicalEvents.map((event, idx) => (
+                              <div key={idx} className="flex gap-4">
+                                <div className="flex-shrink-0">
+                                  <div className="w-16 text-center">
+                                    <span className="text-sm font-bold text-purple-600 dark:text-purple-400">
+                                      {event.year}
+                                    </span>
+                                  </div>
+                                  <div className="w-px h-full bg-purple-200 dark:bg-purple-800 mt-2" />
+                                </div>
+                                <div className="flex-1 pb-4">
+                                  <p className="font-medium mb-1">{event.event}</p>
+                                  <p className="text-sm text-muted-foreground mb-2">
+                                    <span className="font-medium">结局：</span>{event.outcome}
+                                  </p>
+                                  <p className="text-xs text-purple-600 dark:text-purple-400">
+                                    与当前相关性：{event.relevance}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 市场影响 */}
+                      <div className="p-4 rounded-lg bg-slate-100 dark:bg-slate-800/50">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4" />
+                          市场影响分析
+                        </h4>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {analysisResult.historicalAnalysis.marketImpact}
+                        </p>
+                      </div>
+
+                      {/* 投资者建议 */}
+                      <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2 text-green-700 dark:text-green-400">
+                          <Brain className="h-4 w-4" />
+                          投资者建议
+                        </h4>
+                        <p className="text-sm leading-relaxed">
+                          {analysisResult.historicalAnalysis.investorAdvice}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
+
+            {/* 空状态提示 */}
+            {!isAnalyzing && !analysisResult && (
+              <Card className="border-dashed">
+                <CardContent className="py-16 text-center">
+                  <Brain className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
+                  <h3 className="text-lg font-medium mb-2">点击上方按钮开始智能分析</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    系统将自动爬取各大财经媒体新闻，AI智能归类热点主题，
+                    并基于历史数据提供投资参考
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
-          {/* Holdings Tab */}
+          {/* 持仓变动 Tab */}
           <TabsContent value="holdings" className="space-y-4">
             <Card>
               <CardHeader>
@@ -292,7 +494,7 @@ export default function FinanceInsightPage() {
                       投资大佬持仓变动
                     </CardTitle>
                     <CardDescription>
-                      {INVESTORS.length}位投资大师（含个人与机构）近期持仓变化
+                      {INVESTORS.length}位投资大师近期持仓数据
                     </CardDescription>
                   </div>
                   {holdingsLastUpdated && (
@@ -313,8 +515,7 @@ export default function FinanceInsightPage() {
                 ) : holdings.length === 0 ? (
                   <div className="text-center py-12">
                     <DollarSign className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
-                    <p className="text-muted-foreground mb-4">暂无持仓数据</p>
-                    <p className="text-sm text-muted-foreground">数据正在准备中，请稍后再查看</p>
+                    <p className="text-muted-foreground">暂无持仓数据</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -330,9 +531,17 @@ export default function FinanceInsightPage() {
                               <div className="flex items-start justify-between">
                                 <div className="flex items-center gap-2">
                                   {investorInfo.type === 'institution' ? (
-                                    <Building2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                    <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                                      <span className="text-sm font-bold text-green-700 dark:text-green-400">
+                                        {investorInfo.name.charAt(0)}
+                                      </span>
+                                    </div>
                                   ) : (
-                                    <User className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                                      <span className="text-sm font-bold text-blue-700 dark:text-blue-400">
+                                        {investorInfo.name.charAt(0)}
+                                      </span>
+                                    </div>
                                   )}
                                   <div>
                                     <CardTitle className="text-lg leading-tight">{investorInfo.name}</CardTitle>
@@ -340,29 +549,21 @@ export default function FinanceInsightPage() {
                                       variant={investorInfo.type === 'institution' ? 'default' : 'secondary'}
                                       className="mt-1.5 text-xs"
                                     >
-                                      {investorInfo.type === 'institution' ? '投资机构' : '个人投资者'}
+                                      {investorInfo.type === 'institution' ? '机构' : '个人'}
                                     </Badge>
                                   </div>
                                 </div>
                                 {investorHoldings.length > 0 && (
                                   <Badge variant="outline" className="gap-1 text-xs">
-                                    <Star className="h-3 w-3" />
                                     {investorHoldings.length} 条
                                   </Badge>
                                 )}
                               </div>
-                              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                                {investorInfo.description && (
-                                  <p className="text-xs text-muted-foreground line-clamp-2">
-                                    {investorInfo.description}
-                                  </p>
-                                )}
-                                {investorInfo.investmentStyle && (
-                                  <p className="text-xs text-muted-foreground">
-                                    风格: {investorInfo.investmentStyle}
-                                  </p>
-                                )}
-                              </div>
+                              {investorInfo.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                  {investorInfo.description}
+                                </p>
+                              )}
                             </div>
                           </CardHeader>
                           <CardContent className="flex-1 pt-4">
@@ -374,12 +575,12 @@ export default function FinanceInsightPage() {
                                   <div key={idx} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
                                     <div className="flex items-center gap-3">
                                       <Badge 
-                                        variant={holding.action === '买入' || holding.action === '增持' ? 'default' : 'destructive'}
+                                        variant={holding.action === '买入' || holding.action === '增持' || holding.action === '持仓' ? 'default' : 'destructive'}
                                         className={cn(
                                           "text-xs font-medium",
-                                          holding.action === '买入' || holding.action === '增持' 
-                                            ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 hover:bg-green-100" 
-                                            : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 hover:bg-red-100"
+                                          holding.action === '买入' || holding.action === '增持' || holding.action === '持仓'
+                                            ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" 
+                                            : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                                         )}
                                       >
                                         {holding.action}
@@ -400,7 +601,7 @@ export default function FinanceInsightPage() {
                                 ))}
                                 {investorHoldings.length > 5 && (
                                   <p className="text-xs text-muted-foreground text-center pt-2">
-                                    还有 {investorHoldings.length - 5} 条持仓记录...
+                                    还有 {investorHoldings.length - 5} 条...
                                   </p>
                                 )}
                               </div>
@@ -415,7 +616,7 @@ export default function FinanceInsightPage() {
             </Card>
           </TabsContent>
 
-          {/* Media Navigation Tab */}
+          {/* 媒体导航 Tab */}
           <TabsContent value="media" className="space-y-6">
             <Card>
               <CardHeader>
@@ -424,7 +625,7 @@ export default function FinanceInsightPage() {
                   财经媒体导航
                 </CardTitle>
                 <CardDescription>
-                  精选国内外高质量经济商业新闻媒体，一站式获取专业财经资讯
+                  精选国内外高质量经济商业新闻媒体
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-8">
@@ -515,23 +716,6 @@ export default function FinanceInsightPage() {
                     ))}
                   </div>
                 </div>
-
-                <Card className="bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
-                  <CardContent className="pt-4">
-                    <div className="flex items-start gap-3">
-                      <Info className="h-5 w-5 text-slate-500 mt-0.5" />
-                      <div className="text-sm text-muted-foreground">
-                        <p className="font-medium text-foreground mb-2">使用提示</p>
-                        <ul className="space-y-1 list-disc list-inside">
-                          <li>点击媒体卡片即可在新标签页中打开对应网站</li>
-                          <li>国内媒体主要为中文内容，国际媒体多为英文内容</li>
-                          <li>部分国际媒体可能需要科学上网才能访问</li>
-                          <li>建议收藏本页面，随时快速访问常用财经媒体</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
               </CardContent>
             </Card>
           </TabsContent>
