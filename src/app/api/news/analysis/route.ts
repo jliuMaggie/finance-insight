@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SearchClient, Config, LLMClient } from 'coze-coding-dev-sdk';
 
-// 财经媒体 + 国际新闻源
+// 精选财经媒体列表（与页面媒体导航一致）
 const MEDIA_SITES = [
   // 国内财经媒体
   { name: '虎嗅', domain: 'huxiu.com' },
@@ -10,13 +10,23 @@ const MEDIA_SITES = [
   { name: '界面新闻', domain: 'jiemian.com' },
   { name: '财新网', domain: 'caixin.com' },
   { name: '第一财经', domain: 'yicai.com' },
+  { name: '经济观察报', domain: 'eeo.com.cn' },
+  { name: '中国经营报', domain: 'cb.com.cn' },
+  { name: '21世纪经济报道', domain: '21jingji.com' },
   { name: '华尔街见闻', domain: 'wallstreetcn.com' },
   // 国际媒体
-  { name: 'BBC中文', domain: 'bbc.com/zhongwen' },
-  { name: '纽约时报中文', domain: 'nytimes.com' },
-  { name: '路透中文', domain: 'reuters.com' },
-  { name: 'CNN中文', domain: 'cnn.com' },
-  { name: '联合早报', domain: 'zaobao.com' },
+  { name: '华尔街日报', domain: 'wsj.com' },
+  { name: '金融时报', domain: 'ft.com' },
+  { name: '经济学人', domain: 'economist.com' },
+  { name: '彭博社', domain: 'bloomberg.com' },
+  { name: '路透社', domain: 'reuters.com' },
+  { name: '福布斯', domain: 'forbes.com' },
+  { name: '商业内幕', domain: 'businessinsider.com' },
+  { name: '财富', domain: 'fortune.com' },
+  { name: '纽约时报', domain: 'nytimes.com' },
+  { name: 'BBC财经', domain: 'bbc.com/news/business' },
+  { name: '日经亚洲', domain: 'asia.nikkei.com' },
+  { name: 'FT中文网', domain: 'ftchinese.com' },
 ];
 
 // 需要排除的栏目标题模式
@@ -101,34 +111,27 @@ export async function POST(request: NextRequest) {
     
     const allNews: NewsItem[] = [];
     
-    // 第一轮：财经关键词搜索
-    const financeQueries = [
-      '今日财经新闻 最新',
-      'A股市场 今日',
-      '美股 行情 最新',
-      '宏观经济 最新',
-      '央行 政策 最新',
-      '股市 暴跌 暴涨',
+    // 基于精选媒体搜索
+    const allQueries = MEDIA_SITES.flatMap((media) => [
+      `site:${media.domain} 今日 新闻 最新`,
+      `site:${media.domain} 财经 市场 最新`,
+    ]);
+    
+    // 添加一些通用的热门关键词搜索，确保不遗漏
+    const fallbackQueries = [
+      'site:wsj.com OR site:bloomberg.com OR site:reuters.com 市场 行情',
+      'site:huxiu.com OR site:36kr.com 融资 投资 动态',
+      'site:caixin.com OR site:jiemian.com 宏观经济 政策',
     ];
     
-    // 第二轮：国际政治经济关键词
-    const geopoliticsQueries = [
-      '美国 伊朗 战争 最新',
-      '中美 关系 最新',
-      '国际 局势 最新',
-      '地缘政治 最新',
-      '全球 经济 最新',
-      '国际 财经 新闻',
-    ];
-    
-    const allQueries = [...financeQueries, ...geopoliticsQueries];
+    allQueries.push(...fallbackQueries);
     
     // 并行搜索
     const searchPromises = allQueries.map(async (query) => {
       try {
         const response = await searchClient.advancedSearch(query, {
           searchType: 'web',
-          count: 20,
+          count: 15,
           timeRange: '1d',
           needSummary: true,
           needUrl: true,
@@ -138,7 +141,7 @@ export async function POST(request: NextRequest) {
           return response.web_items.map((item) => ({
             title: item.title || '',
             url: item.url || '',
-            source: item.site_name || extractSourceFromUrl(item.url),
+            source: item.site_name || extractSourceFromUrl(item.url || ''),
             publishTime: item.publish_time,
             snippet: item.snippet || '',
             weightScore: calculateWeight(item.title || '', item.snippet || ''),
@@ -292,11 +295,22 @@ function calculateWeight(title: string, snippet: string): number {
   return score;
 }
 
+// 允许的媒体域名白名单
+const ALLOWED_DOMAINS = [
+  'huxiu.com', '36kr.com', 'tmtpost.com', 'jiemian.com', 
+  'caixin.com', 'yicai.com', 'eeo.com.cn', 'cb.com.cn',
+  '21jingji.com', 'wallstreetcn.com',
+  'wsj.com', 'ft.com', 'economist.com', 'bloomberg.com',
+  'reuters.com', 'forbes.com', 'businessinsider.com', 
+  'fortune.com', 'nytimes.com', 'ftchinese.com',
+];
+
 // ========== 过滤新闻 ==========
 function filterNews(news: NewsItem[]): NewsItem[] {
   return news.filter((item) => {
     const title = item.title;
     const lowerTitle = title.toLowerCase();
+    const itemUrl = item.url || '';
     
     // 排除栏目标题
     for (const pattern of EXCLUDE_PATTERNS) {
@@ -318,6 +332,43 @@ function filterNews(news: NewsItem[]): NewsItem[] {
     // 排除问号过多的（可能是问答类）
     if ((title.match(/[？?]/g) || []).length > 2) {
       return false;
+    }
+    
+    // 来源验证：优先使用我们定义的媒体来源
+    const sourceLower = item.source.toLowerCase();
+    const isAllowedSource = ALLOWED_DOMAINS.some(domain => 
+      sourceLower.includes(domain.replace('www.', ''))
+    );
+    
+    // 如果来源不在白名单中，检查URL是否在白名单中
+    let isAllowedUrl = false;
+    if (itemUrl) {
+      isAllowedUrl = ALLOWED_DOMAINS.some(domain => itemUrl.includes(domain));
+    }
+    
+    // 来源或URL至少有一个在白名单中
+    if (!isAllowedSource && !isAllowedUrl) {
+      // 放宽限制：知名财经媒体也可以（这些平台聚合质量也较高）
+      const trustedSources = [
+        // 国内
+        '东方财富', '新浪财经', '腾讯财经', '网易财经', '凤凰财经',
+        '第一财经', '财新', '36氪', '虎嗅', '钛媒体', '界面新闻',
+        '华尔街见闻', '经济观察报', '21世纪经济报道', '中国经营报',
+        // 国际中文
+        '华尔街日报', '彭博', '路透', '金融时报', '经济学人', '福布斯',
+        'BBC', 'CNN', '纽约时报', '日经', '财富', '商业内幕',
+        // 其他可信赖
+        '英为财情', 'Investing.com', '格隆汇', '雪球', '同花顺'
+      ];
+      const isTrusted = trustedSources.some(ts => sourceLower.includes(ts));
+      if (!isTrusted) {
+        // 如果新闻标题包含重要关键词，也可以保留
+        const importantKeywords = ['战争', '冲突', '制裁', '加息', '降息', '崩盘', '暴涨', '暴跌', '危机', '突破'];
+        const hasImportantKeyword = importantKeywords.some(kw => lowerTitle.includes(kw));
+        if (!hasImportantKeyword) {
+          return false;
+        }
+      }
     }
     
     return true;

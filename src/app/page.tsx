@@ -160,7 +160,7 @@ export default function FinanceInsightPage() {
                   金融智能洞察
                 </h1>
                 <p className="text-xs text-muted-foreground">
-                  智能分析财经热点与历史规律
+                  财经热点与历史规律分析
                 </p>
               </div>
             </div>
@@ -175,14 +175,18 @@ export default function FinanceInsightPage() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         <Tabs defaultValue="analysis" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+          <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
             <TabsTrigger value="analysis" className="gap-2">
               <Brain className="h-4 w-4" />
-              智能分析
+              财经热点
             </TabsTrigger>
             <TabsTrigger value="holdings" className="gap-2">
               <DollarSign className="h-4 w-4" />
               持仓变动
+            </TabsTrigger>
+            <TabsTrigger value="media" className="gap-2">
+              <Newspaper className="h-4 w-4" />
+              媒体导航
             </TabsTrigger>
           </TabsList>
 
