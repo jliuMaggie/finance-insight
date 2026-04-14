@@ -48,6 +48,7 @@ interface AnalysisStep {
   step: number;
   stepName: string;
   status: 'pending' | 'running' | 'completed' | 'error';
+  duration?: number;
   data?: any;
   error?: string;
 }
@@ -102,30 +103,77 @@ export default function FinanceInsightPage() {
     }
   };
 
-  // 开始新闻分析
+  // 开始新闻分析（流式）
   const startAnalysis = async () => {
     setIsAnalyzing(true);
     setAnalysisError(null);
     
     // 重置步骤状态
     setAnalysisSteps([
-      { step: 1, stepName: '爬取新闻', status: 'pending' },
-      { step: 2, stepName: '主题归类', status: 'pending' },
-      { step: 3, stepName: '热度排序', status: 'pending' },
-      { step: 4, stepName: '历史分析', status: 'pending' },
+      { step: 1, stepName: '搜索热点新闻', status: 'pending', duration: 0 },
+      { step: 2, stepName: '主题归类', status: 'pending', duration: 0 },
+      { step: 3, stepName: '热度排序', status: 'pending', duration: 0 },
+      { step: 4, stepName: '深度分析', status: 'pending', duration: 0 },
     ]);
     setAnalysisResult(null);
 
     try {
       const response = await fetch('/api/news/analysis', { method: 'POST' });
-      const data = await response.json();
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-      if (data.success) {
-        setAnalysisSteps(data.steps);
-        setAnalysisResult(data.finalResult);
-      } else {
-        setAnalysisError(data.error || '分析失败');
-        setAnalysisSteps(data.steps);
+      if (!reader) throw new Error('无法读取响应');
+
+      let buffer = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'final') {
+                // 所有步骤完成，渲染最终结果
+                setAnalysisSteps(prev => prev.map(s => ({ ...s, status: 'completed' })));
+                setAnalysisResult(data.finalResult);
+                setIsAnalyzing(false);
+                return;
+              }
+              
+              if (data.type === 'error') {
+                setAnalysisError(data.error);
+                setIsAnalyzing(false);
+                return;
+              }
+
+              // 更新步骤进度
+              if (data.step && data.status) {
+                setAnalysisSteps(prev => {
+                  const newSteps = [...prev];
+                  const stepIndex = newSteps.findIndex(s => s.step === data.step);
+                  if (stepIndex !== -1) {
+                    newSteps[stepIndex] = {
+                      ...newSteps[stepIndex],
+                      status: data.status,
+                      duration: data.duration,
+                      data: data.data,
+                    };
+                  }
+                  return newSteps;
+                });
+              }
+            } catch (e) {
+              console.error('Parse SSE error:', e);
+            }
+          }
+        }
       }
     } catch (error) {
       console.error('Analysis error:', error);
@@ -300,9 +348,18 @@ export default function FinanceInsightPage() {
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {step.step === 1 && `已爬取 ${step.data.totalCount} 条新闻`}
                             {step.step === 2 && `归类为 ${step.data.clustersCount} 个主题`}
-                            {step.step === 3 && `共 ${step.data.totalTopics} 个主题`}
+                            {step.step === 3 && `共 ${step.data.allTopics?.length || 0} 个主题待排序`}
                             {step.step === 4 && '分析完成'}
+                            {step.duration && (
+                              <span className="ml-2 text-green-600 dark:text-green-400">
+                                ({Math.round(step.duration / 1000)}s)
+                              </span>
+                            )}
                           </p>
+                        )}
+                        {step.status === 'running' && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                            处理中...</p>
                         )}
                       </div>
                     </div>
