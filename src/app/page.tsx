@@ -290,6 +290,7 @@ export default function FinanceInsightPage() {
   const VersionDetail = ({ record }: { record?: HistoricalRecord }) => {
     if (!record) return null;
     const displayData = record.data;
+    const events = displayData.historicalAnalysis?.historicalEvents || [];
     
     return (
       <>
@@ -303,108 +304,145 @@ export default function FinanceInsightPage() {
           </div>
           <div className="text-center p-3 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
             <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-              {displayData.historicalAnalysis?.historicalEvents?.length || 0}
+              {events.length}
             </div>
             <div className="text-xs text-muted-foreground">历史事件</div>
           </div>
           <div className="text-center p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800">
             <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">
-              {displayData.historicalAnalysis?.historicalEvents?.[0]?.assetImpact?.shortTerm?.change || 'N/A'}
+              {events[0]?.assetImpact?.shortTerm?.change || 'N/A'}
             </div>
-            <div className="text-xs text-muted-foreground">短期影响</div>
+            <div className="text-xs text-muted-foreground">首个短期影响</div>
           </div>
           <div className="text-center p-3 rounded-lg bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800">
             <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">
-              {displayData.historicalAnalysis?.historicalEvents?.[0]?.assetImpact?.longTerm?.change || 'N/A'}
+              {events[0]?.assetImpact?.longTerm?.change || 'N/A'}
             </div>
-            <div className="text-xs text-muted-foreground">长期影响</div>
+            <div className="text-xs text-muted-foreground">首个长期影响</div>
           </div>
         </div>
 
-        {/* 资产影响趋势 */}
-        {displayData.historicalAnalysis?.historicalEvents?.[0]?.assetImpact && (
-          <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-            <h5 className="font-semibold text-sm mb-3 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-orange-600" />
-              {displayData.historicalAnalysis.historicalEvents[0].assetImpact.name} 走势预测
-            </h5>
-            <div className="flex items-center justify-between gap-4">
-              {/* 短期 */}
-              <div className="flex-1 text-center">
-                <div className="text-xs text-muted-foreground mb-1">1个月内</div>
-                <div className={cn(
-                  "text-lg font-bold",
-                  displayData.historicalAnalysis.historicalEvents[0].assetImpact.shortTerm.change.startsWith('+') 
-                    ? "text-red-600" 
-                    : "text-green-600"
-                )}>
-                  {displayData.historicalAnalysis.historicalEvents[0].assetImpact.shortTerm.change}
+        {/* 所有历史事件详情 */}
+        <div className="space-y-4">
+          {events.map((event, eventIdx) => (
+            <div key={eventIdx} className="p-4 rounded-lg bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+              {/* 事件标题 */}
+              <div className="flex items-start gap-3 mb-4">
+                <div className="flex-shrink-0 w-16 h-16 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">{event.year}</span>
                 </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2 mt-2">
-                  <div 
-                    className={cn(
-                      "h-2 rounded-full transition-all",
-                      displayData.historicalAnalysis.historicalEvents[0].assetImpact.shortTerm.change.startsWith('+') 
-                        ? "bg-red-500" 
-                        : "bg-green-500"
-                    )}
-                    style={{ 
-                      width: `${Math.min(Math.abs(parseFloat(displayData.historicalAnalysis.historicalEvents[0].assetImpact.shortTerm.change)) * 2, 100)}%` 
-                    }}
-                  />
+                <div className="flex-1">
+                  <h5 className="font-semibold text-base">{event.event}</h5>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    <span className="font-medium">结局：</span>{event.outcome}
+                  </p>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                    <span className="font-medium">与当前相关性：</span>{event.relevance}
+                  </p>
                 </div>
               </div>
-              {/* 中期 */}
-              <div className="flex-1 text-center">
-                <div className="text-xs text-muted-foreground mb-1">6个月内</div>
-                <div className={cn(
-                  "text-lg font-bold",
-                  displayData.historicalAnalysis.historicalEvents[0].assetImpact.midTerm.change.startsWith('+') 
-                    ? "text-amber-600" 
-                    : "text-emerald-600"
-                )}>
-                  {displayData.historicalAnalysis.historicalEvents[0].assetImpact.midTerm.change}
+
+              {/* 资产影响详情 */}
+              {event.assetImpact && (
+                <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                  <h6 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-orange-600" />
+                    {event.assetImpact.name} 资产变化详情
+                  </h6>
+                  
+                  {/* 短期/中期/长期三个阶段 */}
+                  <div className="space-y-3">
+                    {/* 短期 */}
+                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-red-700 dark:text-red-400">短期影响 (1个月内)</span>
+                        <span className={cn(
+                          "text-xl font-bold",
+                          event.assetImpact.shortTerm.change.startsWith('+') ? "text-red-600" : "text-green-600"
+                        )}>
+                          {event.assetImpact.shortTerm.change}
+                        </span>
+                      </div>
+                      <div className="w-full bg-red-200 dark:bg-red-900/50 rounded-full h-3 mb-2">
+                        <div 
+                          className={cn(
+                            "h-3 rounded-full",
+                            event.assetImpact.shortTerm.change.startsWith('+') ? "bg-red-500" : "bg-green-500"
+                          )}
+                          style={{ 
+                            width: `${Math.min(Math.abs(parseFloat(event.assetImpact.shortTerm.change)) * 3, 100)}%` 
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{event.assetImpact.shortTerm.description}</p>
+                    </div>
+
+                    {/* 中期 */}
+                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-amber-700 dark:text-amber-400">中期影响 (6个月内)</span>
+                        <span className={cn(
+                          "text-xl font-bold",
+                          event.assetImpact.midTerm.change.startsWith('+') ? "text-amber-600" : "text-emerald-600"
+                        )}>
+                          {event.assetImpact.midTerm.change}
+                        </span>
+                      </div>
+                      <div className="w-full bg-amber-200 dark:bg-amber-900/50 rounded-full h-3 mb-2">
+                        <div 
+                          className={cn(
+                            "h-3 rounded-full",
+                            event.assetImpact.midTerm.change.startsWith('+') ? "bg-amber-500" : "bg-emerald-500"
+                          )}
+                          style={{ 
+                            width: `${Math.min(Math.abs(parseFloat(event.assetImpact.midTerm.change)) * 3, 100)}%` 
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{event.assetImpact.midTerm.description}</p>
+                    </div>
+
+                    {/* 长期 */}
+                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-blue-700 dark:text-blue-400">长期影响 (2年内)</span>
+                        <span className={cn(
+                          "text-xl font-bold",
+                          event.assetImpact.longTerm.change.startsWith('+') ? "text-blue-600" : "text-cyan-600"
+                        )}>
+                          {event.assetImpact.longTerm.change}
+                        </span>
+                      </div>
+                      <div className="w-full bg-blue-200 dark:bg-blue-900/50 rounded-full h-3 mb-2">
+                        <div 
+                          className={cn(
+                            "h-3 rounded-full",
+                            event.assetImpact.longTerm.change.startsWith('+') ? "bg-blue-500" : "bg-cyan-500"
+                          )}
+                          style={{ 
+                            width: `${Math.min(Math.abs(parseFloat(event.assetImpact.longTerm.change)) * 3, 100)}%` 
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{event.assetImpact.longTerm.description}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2 mt-2">
-                  <div 
-                    className={cn(
-                      "h-2 rounded-full transition-all",
-                      displayData.historicalAnalysis.historicalEvents[0].assetImpact.midTerm.change.startsWith('+') 
-                        ? "bg-amber-500" 
-                        : "bg-emerald-500"
-                    )}
-                    style={{ 
-                      width: `${Math.min(Math.abs(parseFloat(displayData.historicalAnalysis.historicalEvents[0].assetImpact.midTerm.change)) * 2, 100)}%` 
-                    }}
-                  />
-                </div>
-              </div>
-              {/* 长期 */}
-              <div className="flex-1 text-center">
-                <div className="text-xs text-muted-foreground mb-1">2年内</div>
-                <div className={cn(
-                  "text-lg font-bold",
-                  displayData.historicalAnalysis.historicalEvents[0].assetImpact.longTerm.change.startsWith('+') 
-                    ? "text-blue-600" 
-                    : "text-cyan-600"
-                )}>
-                  {displayData.historicalAnalysis.historicalEvents[0].assetImpact.longTerm.change}
-                </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2 mt-2">
-                  <div 
-                    className={cn(
-                      "h-2 rounded-full transition-all",
-                      displayData.historicalAnalysis.historicalEvents[0].assetImpact.longTerm.change.startsWith('+') 
-                        ? "bg-blue-500" 
-                        : "bg-cyan-500"
-                    )}
-                    style={{ 
-                      width: `${Math.min(Math.abs(parseFloat(displayData.historicalAnalysis.historicalEvents[0].assetImpact.longTerm.change)) * 2, 100)}%` 
-                    }}
-                  />
-                </div>
-              </div>
+              )}
             </div>
+          ))}
+        </div>
+
+        {/* 市场影响 */}
+        {displayData.historicalAnalysis?.marketImpact && (
+          <div className="p-4 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 border border-blue-200 dark:border-blue-800">
+            <h5 className="font-semibold text-sm mb-2 flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-blue-600" />
+              市场影响分析
+            </h5>
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+              {displayData.historicalAnalysis.marketImpact}
+            </p>
           </div>
         )}
 
@@ -414,10 +452,23 @@ export default function FinanceInsightPage() {
             <Info className="h-4 w-4" />
             分析摘要
           </h5>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
             {displayData.historicalAnalysis?.summary}
           </p>
         </div>
+
+        {/* 投资者建议 */}
+        {displayData.historicalAnalysis?.investorAdvice && (
+          <div className="p-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border border-green-200 dark:border-green-800">
+            <h5 className="font-semibold text-sm mb-2 flex items-center gap-2">
+              <Brain className="h-4 w-4 text-green-600" />
+              投资者建议
+            </h5>
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+              {displayData.historicalAnalysis.investorAdvice}
+            </p>
+          </div>
+        )}
       </>
     );
   };
