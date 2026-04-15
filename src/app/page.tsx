@@ -9,7 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   Brain, DollarSign, Newspaper, Globe, Link2, ExternalLink, Info,
   RefreshCw, CheckCircle2, Circle, Loader2, AlertCircle, 
-  TrendingUp, BarChart3, Clock, BookOpen, ArrowRight
+  TrendingUp, BarChart3, Clock, BookOpen, ArrowRight, Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { INVESTORS, Investor } from '@/lib/investors';
@@ -63,6 +63,12 @@ interface AnalysisResult {
     marketImpact: string;
     investorAdvice: string;
   };
+  positionTracking?: {
+    summary: string;
+    investorPositions: any[];
+    recentFilings: any[];
+    sourceNews?: any[];
+  };
 }
 
 interface HistoricalRecord {
@@ -83,6 +89,7 @@ export default function FinanceInsightPage() {
     { step: 2, stepName: '主题归类', status: 'pending' },
     { step: 3, stepName: '热度排序', status: 'pending' },
     { step: 4, stepName: '历史分析', status: 'pending' },
+    { step: 5, stepName: '大佬仓位', status: 'pending' },
   ]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -241,7 +248,7 @@ export default function FinanceInsightPage() {
 
   // 计算进度
   const completedSteps = analysisSteps.filter((s) => s.status === 'completed').length;
-  const progressPercent = (completedSteps / 4) * 100;
+  const progressPercent = (completedSteps / 5) * 100;
 
   // 获取步骤图标
   const getStepIcon = (status: string) => {
@@ -467,6 +474,80 @@ export default function FinanceInsightPage() {
             <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
               {displayData.historicalAnalysis.investorAdvice}
             </p>
+          </div>
+        )}
+
+        {/* 大佬仓位追踪 */}
+        {displayData.positionTracking && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border border-amber-200 dark:border-amber-800">
+              <h5 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                <Users className="h-4 w-4 text-amber-600" />
+                大佬仓位追踪
+              </h5>
+              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                {displayData.positionTracking.summary}
+              </p>
+            </div>
+
+            {/* 投资者仓位列表 */}
+            {displayData.positionTracking.investorPositions && displayData.positionTracking.investorPositions.length > 0 && (
+              <div className="space-y-2">
+                <h6 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">机构仓位变化</h6>
+                {displayData.positionTracking.investorPositions.map((inv: any, idx: number) => (
+                  <div key={idx} className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sm">{inv.investorName}</span>
+                          <Badge 
+                            variant="outline" 
+                            className={cn(
+                              "text-xs",
+                              inv.position === '多头' ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                              inv.position === '空头' ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                              "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                            )}
+                          >
+                            {inv.position}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {inv.action}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{inv.reason}</p>
+                        {inv.asset && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                            相关资产: {inv.asset}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 原始新闻来源 */}
+            {displayData.positionTracking.sourceNews && displayData.positionTracking.sourceNews.length > 0 && (
+              <div className="space-y-2">
+                <h6 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">信息来源</h6>
+                <div className="space-y-1">
+                  {displayData.positionTracking.sourceNews.slice(0, 3).map((news: any, idx: number) => (
+                    <a 
+                      key={idx}
+                      href={news.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block p-2 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <p className="text-xs font-medium line-clamp-1">{news.title}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{news.snippet}</p>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </>
@@ -868,6 +949,103 @@ export default function FinanceInsightPage() {
                           {analysisResult.historicalAnalysis.investorAdvice}
                         </p>
                       </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* 大佬仓位追踪 */}
+                {analysisResult.positionTracking && (
+                  <Card className="border-2 border-amber-200 dark:border-amber-800">
+                    <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                        大佬仓位追踪
+                      </CardTitle>
+                      <CardDescription>
+                        近期知名投资人和机构的仓位变化
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 pt-4">
+                      {/* 概述 */}
+                      <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {analysisResult.positionTracking.summary}
+                        </p>
+                      </div>
+
+                      {/* 投资者仓位列表 */}
+                      {analysisResult.positionTracking.investorPositions && analysisResult.positionTracking.investorPositions.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold mb-3 flex items-center gap-2">
+                            <BarChart3 className="h-4 w-4" />
+                            机构仓位变化
+                          </h4>
+                          <div className="space-y-3">
+                            {analysisResult.positionTracking.investorPositions.map((inv: any, idx: number) => (
+                              <div key={idx} className="p-4 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className="font-semibold">{inv.investorName}</span>
+                                      <Badge 
+                                        variant="outline" 
+                                        className={cn(
+                                          inv.position === '多头' ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                                          inv.position === '空头' ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                                          "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                                        )}
+                                      >
+                                        {inv.position}
+                                      </Badge>
+                                      <Badge variant="secondary">
+                                        {inv.action}
+                                      </Badge>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mb-2">{inv.reason}</p>
+                                    {inv.asset && (
+                                      <p className="text-xs text-blue-600 dark:text-blue-400">
+                                        相关资产: {inv.asset}
+                                      </p>
+                                    )}
+                                    {inv.newsDate && (
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        新闻日期: {inv.newsDate}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 信息来源 */}
+                      {analysisResult.positionTracking.sourceNews && analysisResult.positionTracking.sourceNews.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold mb-3 flex items-center gap-2">
+                            <ExternalLink className="h-4 w-4" />
+                            信息来源
+                          </h4>
+                          <div className="space-y-2">
+                            {analysisResult.positionTracking.sourceNews.slice(0, 5).map((news: any, idx: number) => (
+                              <a 
+                                key={idx}
+                                href={news.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium line-clamp-1">{news.title}</p>
+                                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{news.snippet}</p>
+                                </div>
+                                <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 )}

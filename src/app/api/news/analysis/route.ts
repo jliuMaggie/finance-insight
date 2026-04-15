@@ -252,6 +252,30 @@ export async function POST(request: Request) {
           data: deepAnalysis,
         });
 
+        // ========== 步骤5：大佬仓位追踪 ==========
+        send({
+          step: 5,
+          stepName: '大佬仓位追踪',
+          status: 'running',
+          startTime: getTimestamp(),
+        });
+
+        let positionTracking = null;
+        if (rankedTopics[0]) {
+          positionTracking = await trackInvestorPositions(rankedTopics[0], searchClient, llmClient);
+        }
+
+        const step5EndTime = getTimestamp();
+        send({
+          step: 5,
+          stepName: '大佬仓位追踪',
+          status: 'completed',
+          startTime: step5EndTime - 3000,
+          endTime: step5EndTime,
+          duration: 3000,
+          data: positionTracking,
+        });
+
         // ========== 最终结果 ==========
         controller.enqueue(sendSSE({
           type: 'final',
@@ -265,6 +289,7 @@ export async function POST(request: Request) {
               marketImpact: deepAnalysis.marketImpact || '',
               investorAdvice: deepAnalysis.investorAdvice || '',
             } : null,
+            positionTracking,
           },
         }, encoder));
 
@@ -538,5 +563,146 @@ ${historicalData}
     ],
     marketImpact: '中东局势持续紧张将影响全球能源市场',
     investorAdvice: '关注地缘局势发展，适度配置避险资产'
+  };
+}
+
+// ========== 大佬仓位追踪 ==========
+async function trackInvestorPositions(
+  topic: TopicCluster, 
+  searchClient: SearchClient,
+  llmClient: LLMClient
+) {
+  const topicKeywords = topic.keywords.slice(0, 3).join(' ');
+  
+  // 构建搜索查询 - 查找近期知名投资者和机构的相关仓位变化
+  const investorSearchTerms = [
+    `${topicKeywords} 巴菲特 持仓 最新`,
+    `${topicKeywords} 索罗斯 达利欧 投资 最新`,
+    `${topicKeywords} 机构投资者 仓位变化 2025`,
+    `${topicKeywords} 对冲基金 增持 减持`,
+  ];
+
+  let allInvestorNews: any[] = [];
+  
+  try {
+    // 并行搜索多个投资者相关查询
+    const searchResults = await Promise.all(
+      investorSearchTerms.map(term => 
+        searchClient.advancedSearch(term, { 
+          searchType: 'web_summary', 
+          count: 8, 
+          needSummary: true,
+          timeRange: '3m' // 3个月内
+        }).catch(() => ({ web_items: [] }))
+      )
+    );
+
+    // 合并去重结果
+    const seenTitles = new Set<string>();
+    for (const result of searchResults) {
+      for (const item of result.web_items || []) {
+        if (!seenTitles.has(item.title)) {
+          seenTitles.add(item.title);
+          allInvestorNews.push({
+            title: item.title,
+            snippet: item.snippet,
+            url: item.url,
+            time: item.publish_time || '',
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Investor search error:', error);
+  }
+
+  // 如果没有搜索到结果，返回空
+  if (allInvestorNews.length === 0) {
+    return {
+      summary: '近期暂无知名投资者针对该主题的公开仓位调整信息',
+      investorPositions: [],
+      recentFilings: [],
+    };
+  }
+
+  // 使用LLM总结投资者观点
+  const newsContext = allInvestorNews.slice(0, 10).map(n => 
+    `标题: ${n.title}\n摘要: ${n.snippet}`
+  ).join('\n\n');
+
+  const analysisPrompt = `根据以下近期投资者相关新闻，分析知名投资人和机构对该主题的仓位态度：
+
+新闻内容：
+${newsContext}
+
+输出JSON：
+{
+  "summary": "简要总结近期投资者对该主题的整体态度（50字内）",
+  "investorPositions": [
+    {
+      "investorName": "投资者/机构名称",
+      "position": "多头/空头/中性",
+      "action": "增持/减持/新建仓/维持",
+      "asset": "相关资产",
+      "reason": "调整原因",
+      "newsDate": "新闻日期"
+    }
+  ],
+  "recentFilings": [
+    {
+      "type": "13F/公告/新闻",
+      "content": "具体内容",
+      "date": "日期"
+    }
+  ]
+}`;
+
+  try {
+    const response = await llmClient.invoke([
+      { role: 'system', content: '你是专业金融分析师，回答必须是JSON格式。' },
+      { role: 'user', content: analysisPrompt },
+    ], { temperature: 0.3 });
+
+    const content = response.content;
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      try {
+        const result = JSON.parse(jsonMatch[0]);
+        // 添加原始新闻来源
+        result.sourceNews = allInvestorNews.slice(0, 5);
+        return result;
+      } catch (e) {
+        // 尝试修复JSON
+        try {
+          const cleaned = jsonMatch[0]
+            .replace(/[\u0000-\u001F]+/g, '')
+            .replace(/\n/g, ' ')
+            .replace(/\r/g, '');
+          const result = JSON.parse(cleaned);
+          result.sourceNews = allInvestorNews.slice(0, 5);
+          return result;
+        } catch (e2) {
+          console.error('Position tracking JSON parse error:', e2);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('LLM error:', error);
+  }
+
+  // 兜底返回
+  return {
+    summary: '未能解析投资者仓位信息，请查看原始新闻',
+    investorPositions: allInvestorNews.slice(0, 3).map(n => ({
+      investorName: '市场消息',
+      position: '未知',
+      action: '未知',
+      asset: topicKeywords.split(' ')[0],
+      reason: n.title,
+      newsDate: n.time,
+    })),
+    recentFilings: [],
+    sourceNews: allInvestorNews.slice(0, 5),
   };
 }
