@@ -381,10 +381,34 @@ ${newsTexts}
       { role: 'user', content: prompt },
     ], { temperature: 0.3 });
 
-    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+    // 尝试多种方式提取JSON
+    const content = response.content;
+    let clusters = [];
+    
+    // 方法1：标准JSON提取
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]).clusters || [];
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        clusters = parsed.clusters || [];
+      } catch (e) {
+        // 方法2：尝试提取clusters数组
+        const arrayMatch = content.match(/"clusters"\s*:\s*\[[\s\S]*\]/);
+        if (arrayMatch) {
+          try {
+            const objMatch = content.match(/\{[\s\S]*?"clusters"\s*:\s*\[[\s\S]*?\]\s*\}/);
+            if (objMatch) {
+              const parsed = JSON.parse(objMatch[0]);
+              clusters = parsed.clusters || [];
+            }
+          } catch (e2) {
+            console.error('JSON parse error:', e2);
+          }
+        }
+      }
     }
+    
+    return clusters;
   } catch (error) {
     console.error('LLM error:', error);
   }
@@ -443,9 +467,31 @@ ${historicalData}
       { role: 'user', content: `当前热点：${topic.topic}\n\n相关新闻：\n${newsTitles}\n\n请分析并输出JSON：` + analysisPrompt },
     ], { temperature: 0.3 });
 
-    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+    // 增强JSON解析容错
+    const content = response.content;
+    let result = null;
+    
+    // 方法1：标准提取
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const result = JSON.parse(jsonMatch[0]);
+      try {
+        result = JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        // 方法2：尝试修复常见问题
+        try {
+          // 移除可能的问题字符
+          const cleaned = jsonMatch[0]
+            .replace(/[\u0000-\u001F]+/g, '')
+            .replace(/\n/g, ' ')
+            .replace(/\r/g, '');
+          result = JSON.parse(cleaned);
+        } catch (e2) {
+          console.error('JSON parse error:', e2);
+        }
+      }
+    }
+    
+    if (result) {
       // 宽松验证：年份在1990-2025之间
       const validEvents = result.historicalEvents?.filter((e: any) => {
         const year = parseInt(e.year);
