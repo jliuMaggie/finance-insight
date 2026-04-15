@@ -572,43 +572,103 @@ async function trackInvestorPositions(
   searchClient: SearchClient,
   llmClient: LLMClient
 ) {
+  const topicName = topic.topic;
   const topicKeywords = topic.keywords.slice(0, 3).join(' ');
   
-  // 构建搜索查询 - 查找近期知名投资者和机构的相关仓位变化
-  const investorSearchTerms = [
-    `${topicKeywords} 巴菲特 持仓 最新`,
-    `${topicKeywords} 索罗斯 达利欧 投资 最新`,
-    `${topicKeywords} 机构投资者 仓位变化 2025`,
-    `${topicKeywords} 对冲基金 增持 减持`,
-  ];
+  // 第一步：通过LLM识别该热点影响的相关资产类别
+  const assetPrompt = `分析"${topicName}"这一热点事件，找出其影响的主要资产类别。
+
+输出JSON（只输出JSON，不要其他内容）：
+{
+  "affectedAssets": ["资产类别1", "资产类别2"],
+  "reasoning": "分析理由"
+}`;
+
+  let affectedAssets: string[] = [];
+  try {
+    const assetResponse = await llmClient.invoke([
+      { role: 'system', content: '你是专业金融分析师，只输出JSON。' },
+      { role: 'user', content: assetPrompt },
+    ], { temperature: 0.3 });
+    
+    const assetJsonMatch = assetResponse.content.match(/\{[\s\S]*\}/);
+    if (assetJsonMatch) {
+      const parsed = JSON.parse(assetJsonMatch[0]);
+      affectedAssets = parsed.affectedAssets || [];
+    }
+  } catch (error) {
+    console.error('Asset identification error:', error);
+  }
+
+  // 如果没有识别到资产，使用默认映射
+  if (affectedAssets.length === 0) {
+    // 根据关键词智能映射资产
+    if (topicName.includes('中东') || topicName.includes('伊朗') || topicName.includes('原油') || topicName.includes('石油')) {
+      affectedAssets = ['原油', '能源股'];
+    } else if (topicName.includes('黄金') || topicName.includes('避险')) {
+      affectedAssets = ['黄金', '贵金属'];
+    } else if (topicName.includes('科技') || topicName.includes('AI') || topicName.includes('芯片')) {
+      affectedAssets = ['科技股', '纳斯达克'];
+    } else if (topicName.includes('关税') || topicName.includes('贸易')) {
+      affectedAssets = ['美股', '道琼斯'];
+    } else {
+      affectedAssets = ['美股', '黄金', '原油'];
+    }
+  }
+
+  // 第二步：针对这些资产搜索知名投资人和机构的持仓变化
+  const famousInvestors = ['巴菲特', '伯克希尔', '索罗斯', '达利欧', '桥水', 'ARK', '木头姐', '段永平', '高瓴', '张磊'];
+  
+  // 构建精确搜索词：投资人 + 资产 + 持仓
+  const searchTerms: string[] = [];
+  
+  for (const asset of affectedAssets.slice(0, 3)) {
+    for (const investor of famousInvestors.slice(0, 5)) {
+      searchTerms.push(`${investor} ${asset} 持仓 仓位`);
+      searchTerms.push(`${investor} ${asset} 增持 减持 最新`);
+    }
+    // 也搜索通用机构
+    searchTerms.push(`大型投资基金 ${asset} 仓位调整 2025`);
+    searchTerms.push(`机构投资者 ${asset} 持仓变化 最新`);
+  }
 
   let allInvestorNews: any[] = [];
   
   try {
-    // 并行搜索多个投资者相关查询
-    const searchResults = await Promise.all(
-      investorSearchTerms.map(term => 
-        searchClient.advancedSearch(term, { 
-          searchType: 'web_summary', 
-          count: 8, 
-          needSummary: true,
-          timeRange: '3m' // 3个月内
-        }).catch(() => ({ web_items: [] }))
-      )
-    );
+    // 并行搜索，但限制并发数
+    const batchSize = 6;
+    for (let i = 0; i < searchTerms.length; i += batchSize) {
+      const batch = searchTerms.slice(i, i + batchSize);
+      const searchResults = await Promise.all(
+        batch.map(term => 
+          searchClient.advancedSearch(term, { 
+            searchType: 'web_summary', 
+            count: 5, 
+            needSummary: true,
+            timeRange: '6m' // 扩大到6个月
+          }).catch(() => ({ web_items: [] }))
+        )
+      );
 
-    // 合并去重结果
-    const seenTitles = new Set<string>();
-    for (const result of searchResults) {
-      for (const item of result.web_items || []) {
-        if (!seenTitles.has(item.title)) {
-          seenTitles.add(item.title);
-          allInvestorNews.push({
-            title: item.title,
-            snippet: item.snippet,
-            url: item.url,
-            time: item.publish_time || '',
-          });
+      // 合并去重结果
+      const seenTitles = new Set<string>();
+      for (const result of searchResults) {
+        for (const item of result.web_items || []) {
+          // 过滤掉与投资人和资产不相关的新闻
+          const titleLower = item.title.toLowerCase();
+          const hasInvestor = famousInvestors.some(inv => titleLower.includes(inv));
+          const hasAsset = affectedAssets.some(a => titleLower.includes(a) || item.snippet?.includes(a));
+          
+          if ((hasInvestor || titleLower.includes('持仓') || titleLower.includes('仓位') || titleLower.includes('增持') || titleLower.includes('减持')) && !seenTitles.has(item.title)) {
+            seenTitles.add(item.title);
+            allInvestorNews.push({
+              title: item.title,
+              snippet: item.snippet,
+              url: item.url,
+              time: item.publish_time || '',
+              matchedAsset: affectedAssets[0],
+            });
+          }
         }
       }
     }
@@ -619,40 +679,37 @@ async function trackInvestorPositions(
   // 如果没有搜索到结果，返回空
   if (allInvestorNews.length === 0) {
     return {
-      summary: '近期暂无知名投资者针对该主题的公开仓位调整信息',
+      summary: `暂无${affectedAssets.join('、')}相关的知名投资人仓位变动公开信息`,
+      affectedAssets,
       investorPositions: [],
       recentFilings: [],
     };
   }
 
   // 使用LLM总结投资者观点
-  const newsContext = allInvestorNews.slice(0, 10).map(n => 
-    `标题: ${n.title}\n摘要: ${n.snippet}`
+  const newsContext = allInvestorNews.slice(0, 12).map(n => 
+    `标题: ${n.title}\n摘要: ${n.snippet}\n相关资产: ${n.matchedAsset}`
   ).join('\n\n');
 
-  const analysisPrompt = `根据以下近期投资者相关新闻，分析知名投资人和机构对该主题的仓位态度：
+  const analysisPrompt = `根据以下近期新闻，分析知名投资人和机构对相关资产的仓位态度：
+
+影响资产：${affectedAssets.join('、')}
 
 新闻内容：
 ${newsContext}
 
-输出JSON：
+输出JSON（只输出JSON）：
 {
-  "summary": "简要总结近期投资者对该主题的整体态度（50字内）",
+  "summary": "简要总结近期投资者对该资产的整体态度和动向（60字内）",
+  "affectedAssets": ["相关资产列表"],
   "investorPositions": [
     {
       "investorName": "投资者/机构名称",
       "position": "多头/空头/中性",
-      "action": "增持/减持/新建仓/维持",
+      "action": "增持/减持/新建仓/维持/观望",
       "asset": "相关资产",
-      "reason": "调整原因",
-      "newsDate": "新闻日期"
-    }
-  ],
-  "recentFilings": [
-    {
-      "type": "13F/公告/新闻",
-      "content": "具体内容",
-      "date": "日期"
+      "reason": "调整原因或观察要点",
+      "confidence": "高/中/低"
     }
   ]
 }`;
@@ -693,14 +750,15 @@ ${newsContext}
 
   // 兜底返回
   return {
-    summary: '未能解析投资者仓位信息，请查看原始新闻',
+    summary: `暂无${affectedAssets.join('、')}相关的知名投资人仓位变动公开信息`,
+    affectedAssets,
     investorPositions: allInvestorNews.slice(0, 3).map(n => ({
       investorName: '市场消息',
-      position: '未知',
+      position: '待观察',
       action: '未知',
-      asset: topicKeywords.split(' ')[0],
+      asset: n.matchedAsset || affectedAssets[0],
       reason: n.title,
-      newsDate: n.time,
+      confidence: '低',
     })),
     recentFilings: [],
     sourceNews: allInvestorNews.slice(0, 5),
