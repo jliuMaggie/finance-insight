@@ -609,7 +609,7 @@ export default function FinanceInsightPage() {
                       财经热点智能分析
                     </CardTitle>
                     <CardDescription>
-                      AI驱动的四步分析：爬取 → 归类 → 排序 → 历史回顾
+                      AI驱动的五步分析：爬取 → 归类 → 排序 → 历史回顾 → 大佬仓位
                     </CardDescription>
                   </div>
                   <Button
@@ -639,7 +639,7 @@ export default function FinanceInsightPage() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">分析进度</span>
                     <span className="text-sm text-muted-foreground">
-                      {completedSteps}/4 步骤完成
+                      {completedSteps}/{analysisSteps.length} 步骤完成
                     </span>
                   </div>
                   <Progress value={progressPercent} className="h-2" />
