@@ -9,7 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   Brain, DollarSign, Newspaper, Globe, Link2, ExternalLink, Info,
   RefreshCw, CheckCircle2, Circle, Loader2, AlertCircle, 
-  TrendingUp, BarChart3, Clock, BookOpen, ArrowRight, Users
+  TrendingUp, BarChart3, Clock, BookOpen, ArrowRight, Users, Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { INVESTORS, Investor } from '@/lib/investors';
@@ -69,6 +69,27 @@ interface AnalysisResult {
     recentFilings: any[];
     sourceNews?: any[];
   };
+  supplyDemandAnalysis?: {
+    asset: string;
+    affectedAssets: string[];
+    summary: string;
+    supply: {
+      currentStatus: string;
+      keyFactors: string[];
+      trend: string;
+      majorProducers: string[];
+    };
+    demand: {
+      currentStatus: string;
+      keyFactors: string[];
+      trend: string;
+      majorConsumers: string[];
+    };
+    priceOutlook: string;
+    balanceOutlook: string;
+    keyFactors: string[];
+    sourceNews?: any[];
+  };
 }
 
 interface HistoricalRecord {
@@ -90,6 +111,7 @@ export default function FinanceInsightPage() {
     { step: 3, stepName: '热度排序', status: 'pending' },
     { step: 4, stepName: '历史分析', status: 'pending' },
     { step: 5, stepName: '大佬仓位', status: 'pending' },
+    { step: 6, stepName: '供需分析', status: 'pending' },
   ]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -550,6 +572,34 @@ export default function FinanceInsightPage() {
             )}
           </div>
         )}
+
+        {/* 供需分析 */}
+        {displayData.supplyDemandAnalysis && (
+          <div className="p-4 rounded-lg bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800">
+            <h5 className="font-semibold text-sm mb-2 flex items-center gap-2">
+              <Activity className="h-4 w-4 text-teal-600" />
+              供需关系分析 - {displayData.supplyDemandAnalysis.asset}
+            </h5>
+            <p className="text-sm text-muted-foreground mb-2">
+              {displayData.supplyDemandAnalysis.summary}
+            </p>
+            {displayData.supplyDemandAnalysis.supply && displayData.supplyDemandAnalysis.demand && (
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded bg-blue-100/50 dark:bg-blue-900/30">
+                  <span className="font-medium">供应趋势：</span>{displayData.supplyDemandAnalysis.supply.trend}
+                </div>
+                <div className="p-2 rounded bg-orange-100/50 dark:bg-orange-900/30">
+                  <span className="font-medium">需求趋势：</span>{displayData.supplyDemandAnalysis.demand.trend}
+                </div>
+              </div>
+            )}
+            {displayData.supplyDemandAnalysis.priceOutlook && (
+              <p className="text-xs text-muted-foreground mt-2">
+                价格展望：{displayData.supplyDemandAnalysis.priceOutlook}
+              </p>
+            )}
+          </div>
+        )}
       </>
     );
   };
@@ -609,7 +659,7 @@ export default function FinanceInsightPage() {
                       财经热点智能分析
                     </CardTitle>
                     <CardDescription>
-                      AI驱动的五步分析：爬取 → 归类 → 排序 → 历史回顾 → 大佬仓位
+                      AI驱动的六步分析：爬取 → 归类 → 排序 → 历史回顾 → 大佬仓位 → 供需分析
                     </CardDescription>
                   </div>
                   <Button
@@ -1029,6 +1079,182 @@ export default function FinanceInsightPage() {
                           </h4>
                           <div className="space-y-2">
                             {analysisResult.positionTracking.sourceNews.slice(0, 5).map((news: any, idx: number) => (
+                              <a 
+                                key={idx}
+                                href={news.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium line-clamp-1">{news.title}</p>
+                                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{news.snippet}</p>
+                                </div>
+                                <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* 供需关系分析 */}
+                {analysisResult.supplyDemandAnalysis && (
+                  <Card className="border-2 border-teal-200 dark:border-teal-800">
+                    <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 dark:from-teal-950/30 dark:to-cyan-950/30">
+                      <CardTitle className="flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                        供需关系分析
+                      </CardTitle>
+                      <CardDescription>
+                        {analysisResult.supplyDemandAnalysis.asset}市场供需状况
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 pt-4">
+                      {/* 概述 */}
+                      <div className="p-4 rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800">
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {analysisResult.supplyDemandAnalysis.summary}
+                        </p>
+                      </div>
+
+                      {/* 供应与需求对比 */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* 供应侧 */}
+                        {analysisResult.supplyDemandAnalysis.supply && (
+                          <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                            <h4 className="font-semibold mb-3 flex items-center gap-2">
+                              <TrendingUp className="h-4 w-4 text-blue-600" />
+                              供应侧
+                              <Badge variant="outline" className="ml-auto">
+                                {analysisResult.supplyDemandAnalysis.supply.trend}
+                              </Badge>
+                            </h4>
+                            <p className="text-sm text-muted-foreground mb-3">
+                              {analysisResult.supplyDemandAnalysis.supply.currentStatus}
+                            </p>
+                            {analysisResult.supplyDemandAnalysis.supply.keyFactors.length > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-muted-foreground">关键因素：</p>
+                                {analysisResult.supplyDemandAnalysis.supply.keyFactors.map((factor, idx) => (
+                                  <p key={idx} className="text-xs text-muted-foreground flex items-start gap-1">
+                                    <span className="text-blue-500">•</span>
+                                    {factor}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                            {analysisResult.supplyDemandAnalysis.supply.majorProducers.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs font-medium text-muted-foreground">主要生产方：</p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {analysisResult.supplyDemandAnalysis.supply.majorProducers.map((p, idx) => (
+                                    <Badge key={idx} variant="secondary" className="text-xs">
+                                      {p}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 需求侧 */}
+                        {analysisResult.supplyDemandAnalysis.demand && (
+                          <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
+                            <h4 className="font-semibold mb-3 flex items-center gap-2">
+                              <BarChart3 className="h-4 w-4 text-orange-600" />
+                              需求侧
+                              <Badge variant="outline" className="ml-auto">
+                                {analysisResult.supplyDemandAnalysis.demand.trend}
+                              </Badge>
+                            </h4>
+                            <p className="text-sm text-muted-foreground mb-3">
+                              {analysisResult.supplyDemandAnalysis.demand.currentStatus}
+                            </p>
+                            {analysisResult.supplyDemandAnalysis.demand.keyFactors.length > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-muted-foreground">关键因素：</p>
+                                {analysisResult.supplyDemandAnalysis.demand.keyFactors.map((factor, idx) => (
+                                  <p key={idx} className="text-xs text-muted-foreground flex items-start gap-1">
+                                    <span className="text-orange-500">•</span>
+                                    {factor}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                            {analysisResult.supplyDemandAnalysis.demand.majorConsumers.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs font-medium text-muted-foreground">主要消费方：</p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {analysisResult.supplyDemandAnalysis.demand.majorConsumers.map((c, idx) => (
+                                    <Badge key={idx} variant="secondary" className="text-xs">
+                                      {c}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 价格展望 */}
+                      {analysisResult.supplyDemandAnalysis.priceOutlook && (
+                        <div className="p-4 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border border-purple-200 dark:border-purple-800">
+                          <h4 className="font-semibold mb-2 flex items-center gap-2">
+                            <Activity className="h-4 w-4 text-purple-600" />
+                            价格展望
+                          </h4>
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-sm",
+                                analysisResult.supplyDemandAnalysis.priceOutlook.includes('涨') ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                                analysisResult.supplyDemandAnalysis.priceOutlook.includes('跌') ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                                "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                              )}
+                            >
+                              {analysisResult.supplyDemandAnalysis.priceOutlook}
+                            </Badge>
+                            {analysisResult.supplyDemandAnalysis.balanceOutlook && (
+                              <span className="text-sm text-muted-foreground">
+                                {analysisResult.supplyDemandAnalysis.balanceOutlook}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 关键影响因素 */}
+                      {analysisResult.supplyDemandAnalysis.keyFactors && analysisResult.supplyDemandAnalysis.keyFactors.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold mb-2 text-sm">关键影响因素</h4>
+                          <div className="space-y-1">
+                            {analysisResult.supplyDemandAnalysis.keyFactors.slice(0, 5).map((factor, idx) => (
+                              <div key={idx} className="flex items-start gap-2 text-xs">
+                                <Badge variant="outline" className="flex-shrink-0 h-5">
+                                  {idx + 1}
+                                </Badge>
+                                <span className="text-muted-foreground">{factor}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 信息来源 */}
+                      {analysisResult.supplyDemandAnalysis.sourceNews && analysisResult.supplyDemandAnalysis.sourceNews.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold mb-3 flex items-center gap-2">
+                            <ExternalLink className="h-4 w-4" />
+                            信息来源
+                          </h4>
+                          <div className="space-y-2">
+                            {analysisResult.supplyDemandAnalysis.sourceNews.slice(0, 4).map((news: any, idx: number) => (
                               <a 
                                 key={idx}
                                 href={news.url}

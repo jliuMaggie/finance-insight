@@ -276,6 +276,30 @@ export async function POST(request: Request) {
           data: positionTracking,
         });
 
+        // ========== 步骤6：供需关系分析 ==========
+        send({
+          step: 6,
+          stepName: '供需分析',
+          status: 'running',
+          startTime: getTimestamp(),
+        });
+
+        let supplyDemandAnalysis = null;
+        if (rankedTopics[0]) {
+          supplyDemandAnalysis = await analyzeSupplyDemand(rankedTopics[0], searchClient, llmClient);
+        }
+
+        const step6EndTime = getTimestamp();
+        send({
+          step: 6,
+          stepName: '供需分析',
+          status: 'completed',
+          startTime: step6EndTime - 4000,
+          endTime: step6EndTime,
+          duration: 4000,
+          data: supplyDemandAnalysis,
+        });
+
         // ========== 最终结果 ==========
         controller.enqueue(sendSSE({
           type: 'final',
@@ -290,6 +314,7 @@ export async function POST(request: Request) {
               investorAdvice: deepAnalysis.investorAdvice || '',
             } : null,
             positionTracking,
+            supplyDemandAnalysis,
           },
         }, encoder));
 
@@ -763,4 +788,252 @@ ${newsContext}
     recentFilings: [],
     sourceNews: allInvestorNews.slice(0, 5),
   };
+}
+
+// ========== 供需关系分析 ==========
+async function analyzeSupplyDemand(
+  topic: TopicCluster, 
+  searchClient: SearchClient,
+  llmClient: LLMClient
+) {
+  const topicName = topic.topic;
+  
+  // 第一步：识别该热点影响的主要资产
+  const assetPrompt = `分析"${topicName}"这一热点事件，找出其影响的主要资产类别。
+
+输出JSON（只输出JSON，不要其他内容）：
+{
+  "affectedAssets": ["资产类别1", "资产类别2"],
+  "reasoning": "分析理由"
+}`;
+
+  let affectedAssets: string[] = [];
+  try {
+    const assetResponse = await llmClient.invoke([
+      { role: 'system', content: '你是专业金融分析师，只输出JSON。' },
+      { role: 'user', content: assetPrompt },
+    ], { temperature: 0.3 });
+    
+    const assetJsonMatch = assetResponse.content.match(/\{[\s\S]*\}/);
+    if (assetJsonMatch) {
+      const parsed = JSON.parse(assetJsonMatch[0]);
+      affectedAssets = parsed.affectedAssets || [];
+    }
+  } catch (error) {
+    console.error('Asset identification error:', error);
+  }
+
+  // 如果没有识别到资产，使用默认映射
+  if (affectedAssets.length === 0) {
+    if (topicName.includes('中东') || topicName.includes('伊朗') || topicName.includes('原油') || topicName.includes('石油')) {
+      affectedAssets = ['原油'];
+    } else if (topicName.includes('黄金') || topicName.includes('避险')) {
+      affectedAssets = ['黄金'];
+    } else if (topicName.includes('科技') || topicName.includes('AI') || topicName.includes('芯片')) {
+      affectedAssets = ['科技股'];
+    } else if (topicName.includes('关税') || topicName.includes('贸易')) {
+      affectedAssets = ['美股'];
+    } else {
+      affectedAssets = ['原油', '黄金', '美股'];
+    }
+  }
+
+  // 第二步：针对主要资产搜索供需数据
+  const asset = affectedAssets[0];
+  
+  // 根据不同资产类型构建不同的搜索词
+  const searchTerms = generateSupplyDemandSearchTerms(asset);
+
+  let allSupplyDemandNews: any[] = [];
+  
+  try {
+    // 并行搜索供需相关数据
+    const searchResults = await Promise.all(
+      searchTerms.map(term => 
+        searchClient.advancedSearch(term, { 
+          searchType: 'web_summary', 
+          count: 8, 
+          needSummary: true,
+          timeRange: '3m'
+        }).catch(() => ({ web_items: [] }))
+      )
+    );
+
+    // 合并去重结果
+    const seenTitles = new Set<string>();
+    for (const result of searchResults) {
+      for (const item of result.web_items || []) {
+        if (!seenTitles.has(item.title)) {
+          seenTitles.add(item.title);
+          allSupplyDemandNews.push({
+            title: item.title,
+            snippet: item.snippet,
+            url: item.url,
+            time: item.publish_time || '',
+            asset,
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Supply demand search error:', error);
+  }
+
+  // 如果没有搜索到结果，返回空
+  if (allSupplyDemandNews.length === 0) {
+    return {
+      asset,
+      affectedAssets,
+      summary: `暂无${asset}市场供需关系的最新数据`,
+      supply: null,
+      demand: null,
+      priceOutlook: '数据不足',
+      keyFactors: [],
+      sourceNews: [],
+    };
+  }
+
+  // 第三步：使用LLM分析供需数据
+  const newsContext = allSupplyDemandNews.slice(0, 15).map(n => 
+    `标题: ${n.title}\n摘要: ${n.snippet}`
+  ).join('\n\n');
+
+  const analysisPrompt = `根据以下市场新闻，分析${asset}的供需关系状况：
+
+新闻内容：
+${newsContext}
+
+输出JSON（只输出JSON）：
+{
+  "summary": "简要总结当前供需格局（60字内）",
+  "supply": {
+    "currentStatus": "供应状况描述",
+    "keyFactors": ["供应侧关键因素1", "供应侧关键因素2"],
+    "trend": "增长/下降/稳定",
+    "majorProducers": ["主要生产方"]
+  },
+  "demand": {
+    "currentStatus": "需求状况描述",
+    "keyFactors": ["需求侧关键因素1", "需求侧关键因素2"],
+    "trend": "增长/下降/稳定",
+    "majorConsumers": ["主要消费方"]
+  },
+  "priceOutlook": "价格走势展望（看涨/看跌/震荡）",
+  "balanceOutlook": "供需平衡展望",
+  "keyFactors": ["影响供需的关键因素1", "关键因素2", "关键因素3"]
+}`;
+
+  try {
+    const response = await llmClient.invoke([
+      { role: 'system', content: '你是专业金融分析师，回答必须是JSON格式。' },
+      { role: 'user', content: analysisPrompt },
+    ], { temperature: 0.3 });
+
+    const content = response.content;
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      try {
+        const result = JSON.parse(jsonMatch[0]);
+        result.asset = asset;
+        result.affectedAssets = affectedAssets;
+        result.sourceNews = allSupplyDemandNews.slice(0, 8);
+        return result;
+      } catch (e) {
+        // 尝试修复JSON
+        try {
+          const cleaned = jsonMatch[0]
+            .replace(/[\u0000-\u001F]+/g, '')
+            .replace(/\n/g, ' ')
+            .replace(/\r/g, '');
+          const result = JSON.parse(cleaned);
+          result.asset = asset;
+          result.affectedAssets = affectedAssets;
+          result.sourceNews = allSupplyDemandNews.slice(0, 8);
+          return result;
+        } catch (e2) {
+          console.error('Supply demand JSON parse error:', e2);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('LLM error:', error);
+  }
+
+  // 兜底返回
+  return {
+    asset,
+    affectedAssets,
+    summary: `基于近期市场数据分析${asset}供需关系`,
+    supply: {
+      currentStatus: '供应状况待确认',
+      keyFactors: [],
+      trend: '待观察',
+      majorProducers: [],
+    },
+    demand: {
+      currentStatus: '需求状况待确认',
+      keyFactors: [],
+      trend: '待观察',
+      majorConsumers: [],
+    },
+    priceOutlook: '待分析',
+    balanceOutlook: '供需平衡待确认',
+    keyFactors: allSupplyDemandNews.slice(0, 5).map(n => n.title),
+    sourceNews: allSupplyDemandNews.slice(0, 8),
+  };
+}
+
+// 根据资产类型生成供需搜索词
+function generateSupplyDemandSearchTerms(asset: string): string[] {
+  const baseTerms: Record<string, string[]> = {
+    '原油': [
+      '原油供应 全球产量  OPEC',
+      '原油需求 中国 美国 印度',
+      '原油库存 供需平衡 最新',
+      '原油市场 供应过剩 短缺',
+      '石油输出国 减产 增产',
+      '全球原油需求 增长 下降',
+    ],
+    '黄金': [
+      '黄金供应 矿山产量 全球',
+      '黄金需求 央行 购金',
+      '黄金市场 供需 最新数据',
+      '全球央行 黄金储备',
+      '黄金ETF 持仓变化',
+    ],
+    '天然气': [
+      '天然气供应 全球产量',
+      '天然气需求 欧洲 亚洲',
+      '天然气市场 供需平衡',
+      'LNG 液化天然气 贸易',
+    ],
+    '小麦': [
+      '小麦供应 全球产量',
+      '小麦需求 进出口',
+      '小麦市场 供需平衡',
+      '粮食供应 农产品',
+    ],
+    '科技股': [
+      '科技股业绩 财报',
+      '科技行业 需求 增长',
+      'AI芯片 供应 需求',
+      '半导体 市场供需',
+    ],
+    '美股': [
+      '美股 财报 业绩',
+      '美国经济 增长 衰退',
+      '企业盈利 营收 预期',
+    ],
+  };
+
+  // 返回对应资产的搜索词，或使用默认搜索词
+  const defaultTerms = [
+    `${asset} 供应 产量 最新`,
+    `${asset} 需求 消费 最新`,
+    `${asset} 市场 供需 平衡`,
+    `${asset} 库存 变化`,
+  ];
+
+  return baseTerms[asset] || defaultTerms;
 }
