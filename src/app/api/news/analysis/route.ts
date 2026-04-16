@@ -1115,31 +1115,31 @@ interface Agent {
 
 const INVESTMENT_AGENTS: Agent[] = [
   {
-    name: '沃伦·巴菲特 & 段永平',
+    name: 'Agent（沃伦·巴菲特 & 段永平）',
     style: '价值投资',
     philosophy: '强调企业内在价值、安全边际、长期持有优质股票',
     avatar: '🧓',
   },
   {
-    name: '詹姆斯·西蒙斯',
+    name: 'Agent（詹姆斯·西蒙斯）',
     style: '量化投资',
     philosophy: '通过数学模型和算法捕捉市场短期定价偏差',
     avatar: '🔢',
   },
   {
-    name: '红杉资本',
+    name: 'Agent（红杉资本）',
     style: '风险投资',
     philosophy: '寻找具有颠覆性创新和高速增长潜力的早期公司',
     avatar: '🚀',
   },
   {
-    name: '贝莱德',
+    name: 'Agent（贝莱德）',
     style: '被动投资',
     philosophy: '低成本指数化投资，分散风险，追求市场平均收益',
     avatar: '📊',
   },
   {
-    name: '雷达里奥 & 索罗斯',
+    name: 'Agent（雷达里奥 & 索罗斯）',
     style: '宏观对冲',
     philosophy: '基于宏观经济周期和央行政策进行大势研判和仓位对冲',
     avatar: '🌐',

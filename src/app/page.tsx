@@ -252,6 +252,10 @@ export default function FinanceInsightPage() {
       { step: 2, stepName: '主题归类', status: 'pending', duration: 0 },
       { step: 3, stepName: '热度排序', status: 'pending', duration: 0 },
       { step: 4, stepName: '深度分析', status: 'pending', duration: 0 },
+      { step: 5, stepName: '大佬仓位', status: 'pending', duration: 0 },
+      { step: 6, stepName: '供需分析', status: 'pending', duration: 0 },
+      { step: 7, stepName: '产业链分析', status: 'pending', duration: 0 },
+      { step: 8, stepName: 'Agent讨论', status: 'pending', duration: 0 },
     ]);
     setAnalysisResult(null);
 
