@@ -181,247 +181,6 @@ export default function FinanceInsightPage() {
   const [historicalRecords, setHistoricalRecords] = useState<HistoricalRecord[]>([]);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
 
-  // 导出状态
-  const [isExporting, setIsExporting] = useState(false);
-
-  // 导出长图功能 - 使用Canvas直接绘制
-  const exportToImage = async () => {
-    if (!analysisResult || isExporting) return;
-
-    setIsExporting(true);
-    try {
-      const result = analysisResult;
-      const topTopic = result.topTopic;
-      const allTopics = result.allTopics || [];
-      const historicalAnalysis = result.historicalAnalysis;
-      const positionTracking = result.positionTracking;
-      const multiAgentDiscussion = result.multiAgentDiscussion;
-
-      // 固定宽度
-      const width = 1100;
-      const padding = 40;
-
-      // 收集所有要绘制的内容
-      const sections: { y: number; height: number; draw: (ctx: CanvasRenderingContext2D, y: number) => void }[] = [];
-
-      // 标题区
-      sections.push({ y: 0, height: 110, draw: (ctx, y) => {
-        ctx.fillStyle = '#1e40af';
-        ctx.font = 'bold 32px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.fillText('金融智能洞察报告', padding, y + 36);
-        ctx.fillStyle = '#6b7280';
-        ctx.font = '16px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.fillText(`生成时间：${new Date().toLocaleString('zh-CN')} | 基于AI八步深度分析`, padding, y + 70);
-      }});
-
-      // 分隔线
-      sections.push({ y: 0, height: 20, draw: (ctx, y) => {
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(padding, y + 10);
-        ctx.lineTo(width - padding, y + 10);
-        ctx.stroke();
-      }});
-
-      // TOP1主题
-      if (topTopic) {
-        sections.push({ y: 0, height: 150, draw: (ctx, y) => {
-          const cardH = 130;
-          const gradient = ctx.createLinearGradient(padding, y, width - padding, y + cardH);
-          gradient.addColorStop(0, '#eff6ff');
-          gradient.addColorStop(1, '#dbeafe');
-          ctx.fillStyle = gradient;
-          ctx.strokeStyle = '#3b82f6';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.roundRect(padding, y, width - padding * 2, cardH, 12);
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#1e3a8a';
-          ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, sans-serif';
-          ctx.fillText(`🔥 TOP1 热度主题`, padding + 20, y + 35);
-          const title = topTopic.topic;
-          // 换行处理长标题
-          if (title.length > 20) {
-            ctx.fillText(title.substring(0, 20), padding + 20, y + 60);
-            ctx.fillText(title.substring(20, 40), padding + 20, y + 85);
-          } else {
-            ctx.fillText(title, padding + 20, y + 60);
-          }
-          ctx.fillStyle = '#4b5563';
-          ctx.font = '15px -apple-system, BlinkMacSystemFont, sans-serif';
-          ctx.fillText(`关键词：${(topTopic.keywords || []).join('、')}`, padding + 20, y + 110);
-        }});
-      }
-
-      // 历史分析
-      if (historicalAnalysis?.summary) {
-        sections.push({ y: 0, height: 120, draw: (ctx, y) => {
-          ctx.fillStyle = '#fef3c7';
-          ctx.strokeStyle = '#f59e0b';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.roundRect(padding, y, width - padding * 2, 100, 8);
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#92400e';
-          ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, sans-serif';
-          ctx.fillText('📊 历史规律分析', padding + 16, y + 26);
-          ctx.fillStyle = '#78350f';
-          ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
-          const text = historicalAnalysis.summary;
-          ctx.fillText(text.substring(0, 60), padding + 16, y + 52);
-          if (text.length > 60) {
-            ctx.fillText(text.substring(60, 120), padding + 16, y + 76);
-          }
-        }});
-      }
-
-      // 大佬仓位
-      if (positionTracking?.summary) {
-        sections.push({ y: 0, height: 120, draw: (ctx, y) => {
-          ctx.fillStyle = '#ecfdf5';
-          ctx.strokeStyle = '#10b981';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.roundRect(padding, y, width - padding * 2, 100, 8);
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#065f46';
-          ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, sans-serif';
-          ctx.fillText('💼 大佬仓位追踪', padding + 16, y + 26);
-          ctx.fillStyle = '#047857';
-          ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
-          const text = positionTracking.summary;
-          ctx.fillText(text.substring(0, 60), padding + 16, y + 52);
-          if (text.length > 60) {
-            ctx.fillText(text.substring(60, 120), padding + 16, y + 76);
-          }
-        }});
-      }
-
-      // Agent讨论
-      if (multiAgentDiscussion?.consensus) {
-        const c = multiAgentDiscussion.consensus;
-        sections.push({ y: 0, height: 150, draw: (ctx, y) => {
-          ctx.fillStyle = '#f3e8ff';
-          ctx.strokeStyle = '#a855f7';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.roundRect(padding, y, width - padding * 2, 130, 8);
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#6b21a8';
-          ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, sans-serif';
-          ctx.fillText('🤖 五大大师投资讨论共识', padding + 16, y + 26);
-          ctx.fillStyle = '#7c3aed';
-          ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
-          ctx.fillText(`共识：${(c.consensusView || '').substring(0, 55)}`, padding + 16, y + 52);
-          ctx.fillText(`推荐：${(c.recommendedAssets || []).join('、')}`, padding + 16, y + 76);
-          ctx.fillText(`策略：${(c.positionStrategy || '').substring(0, 55)}`, padding + 16, y + 100);
-        }});
-      }
-
-      // 热度排名
-      if (allTopics.length > 0) {
-        sections.push({ y: 0, height: 50, draw: (ctx, y) => {
-          ctx.fillStyle = '#1f2937';
-          ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, sans-serif';
-          ctx.fillText('📋 热度排名总览', padding, y + 30);
-        }});
-        
-        const topicColors = ['#f97316', '#6b7280', '#9ca3af', '#9ca3af', '#9ca3af'];
-        allTopics.slice(0, 5).forEach((topic: any, idx: number) => {
-          sections.push({ y: 0, height: 68, draw: (ctx, y) => {
-            ctx.fillStyle = idx === 0 ? '#fff7ed' : '#f9fafb';
-            ctx.strokeStyle = idx === 0 ? '#f97316' : '#e5e7eb';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(padding, y, width - padding * 2, 58, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = topicColors[idx];
-            ctx.beginPath();
-            ctx.arc(padding + 24, y + 29, 16, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(String(idx + 1), padding + 24, y + 34);
-            ctx.fillStyle = '#1f2937';
-            ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.textAlign = 'left';
-            const topicName = (topic.topic || '').substring(0, 32);
-            ctx.fillText(topicName, padding + 52, y + 26);
-            ctx.fillStyle = '#6b7280';
-            ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.fillText(`${topic.newsCount}条 | 热度${(topic.hotScore || 0).toFixed(0)}`, padding + 52, y + 46);
-          }});
-        });
-      }
-
-      // 页脚
-      sections.push({ y: 0, height: 50, draw: (ctx, y) => {
-        ctx.fillStyle = '#e5e7eb';
-        ctx.fillRect(padding, y, width - padding * 2, 1);
-        ctx.fillStyle = '#9ca3af';
-        ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('本报告由金融智能洞察系统自动生成 | 分析内容仅供参考，不构成投资建议', width / 2, y + 25);
-      }});
-
-      // 计算总高度
-      const totalHeight = sections.reduce((sum, s) => sum + s.height, 0) + padding * 2;
-
-      // 创建Canvas
-      const canvas = document.createElement('canvas');
-      canvas.width = width * 2;
-      canvas.height = totalHeight * 2;
-      const ctx = canvas.getContext('2d')!;
-      ctx.scale(2, 2);
-
-      // 绘制背景
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, totalHeight);
-      ctx.textAlign = 'left';
-
-      // 绘制所有内容
-      let currentY = padding;
-      for (const section of sections) {
-        section.draw(ctx, currentY);
-        currentY += section.height;
-      }
-
-      // 转换为图片并上传
-      const imageData = canvas.toDataURL('image/png');
-      const formData = new FormData();
-      formData.append('image', imageData);
-      formData.append('title', topTopic?.topic || '金融洞察报告');
-
-      const response = await fetch('/api/export/image', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('上传失败');
-      const uploadResult = await response.json();
-
-      // 下载
-      const link = document.createElement('a');
-      link.href = uploadResult.downloadUrl;
-      link.download = `金融洞察_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.png`;
-      link.target = '_blank';
-      link.click();
-
-    } catch (error) {
-      console.error('Export error:', error);
-      alert('导出失败，请重试');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   // 加载历史记录
   useEffect(() => {
     const saved = localStorage.getItem('analysisHistory');
@@ -521,7 +280,7 @@ export default function FinanceInsightPage() {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-
+              
               if (data.type === 'final') {
                 // 所有步骤完成，渲染最终结果
                 setAnalysisSteps(prev => prev.map(s => ({ ...s, status: 'completed' })));
@@ -531,7 +290,7 @@ export default function FinanceInsightPage() {
                 setIsAnalyzing(false);
                 return;
               }
-
+              
               if (data.type === 'error') {
                 setAnalysisError(data.error);
                 setIsAnalyzing(false);
@@ -1103,29 +862,8 @@ export default function FinanceInsightPage() {
             {/* 分析结果展示 */}
             {analysisResult && (
               <>
-                {/* 导出按钮 */}
-                <div className="flex justify-end">
-                  <Button
-                    onClick={exportToImage}
-                    disabled={isExporting}
-                    className="gap-2 bg-green-600 hover:bg-green-700"
-                  >
-                    {isExporting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        导出中...
-                      </>
-                    ) : (
-                      <>
-                        <ExternalLink className="h-4 w-4" />
-                        导出长图分享
-                      </>
-                    )}
-                  </Button>
-                </div>
-
                 {/* 热度排名 TOP 主题 */}
-                <Card id="analysis-result">
+                <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <BarChart3 className="h-5 w-5 text-orange-600 dark:text-orange-400" />
