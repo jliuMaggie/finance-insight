@@ -203,15 +203,17 @@ export default function FinanceInsightPage() {
       // 创建导出专用的干净容器
       const exportContainer = document.createElement('div');
       exportContainer.style.cssText = `
-        position: fixed;
-        top: -9999px;
-        left: -9999px;
+        position: absolute;
+        top: 0;
+        left: 0;
         width: 1100px;
+        min-height: 100vh;
         background: #ffffff;
         padding: 32px;
         font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
         color: #1f2937;
         line-height: 1.6;
+        z-index: -1;
       `;
 
       // 添加标题
@@ -341,14 +343,19 @@ export default function FinanceInsightPage() {
       // 添加到页面
       document.body.appendChild(exportContainer);
 
-      // 生成canvas
+      // 生成canvas - 动态获取实际高度
+      const actualHeight = exportContainer.scrollHeight;
+      exportContainer.style.height = `${actualHeight}px`;
+
       const canvas = await html2canvas(exportContainer, {
         backgroundColor: '#ffffff',
         scale: 2,
         useCORS: true,
         logging: false,
         width: 1100,
+        height: actualHeight,
         windowWidth: 1100,
+        windowHeight: actualHeight,
       });
 
       // 清理临时元素
