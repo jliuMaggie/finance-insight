@@ -324,6 +324,39 @@ export async function POST(request: Request) {
           data: chainImpactAnalysis,
         });
 
+        // ========== 步骤8：多Agent投资讨论 ==========
+        send({
+          step: 8,
+          stepName: 'Agent讨论',
+          status: 'running',
+          startTime: getTimestamp(),
+        });
+
+        // 收集前几步的分析结果
+        const analysisContext = {
+          topTopic: rankedTopics[0],
+          historicalAnalysis: deepAnalysis,
+          positionTracking,
+          supplyDemandAnalysis,
+          chainImpactAnalysis,
+        };
+
+        let multiAgentDiscussion = null;
+        if (rankedTopics[0]) {
+          multiAgentDiscussion = await runMultiAgentDiscussion(analysisContext, llmClient);
+        }
+
+        const step8EndTime = getTimestamp();
+        send({
+          step: 8,
+          stepName: 'Agent讨论',
+          status: 'completed',
+          startTime: step8EndTime - 6000,
+          endTime: step8EndTime,
+          duration: 6000,
+          data: multiAgentDiscussion,
+        });
+
         // ========== 最终结果 ==========
         controller.enqueue(sendSSE({
           type: 'final',
@@ -340,6 +373,7 @@ export async function POST(request: Request) {
             positionTracking,
             supplyDemandAnalysis,
             chainImpactAnalysis,
+            multiAgentDiscussion,
           },
         }, encoder));
 
@@ -1061,6 +1095,322 @@ function generateSupplyDemandSearchTerms(asset: string): string[] {
   ];
 
   return baseTerms[asset] || defaultTerms;
+}
+
+// ========== 多Agent投资讨论 ==========
+interface MultiAgentContext {
+  topTopic: TopicCluster | null;
+  historicalAnalysis: any;
+  positionTracking: any;
+  supplyDemandAnalysis: any;
+  chainImpactAnalysis: any;
+}
+
+interface Agent {
+  name: string;
+  style: string;
+  philosophy: string;
+  avatar: string;
+}
+
+const INVESTMENT_AGENTS: Agent[] = [
+  {
+    name: '沃伦·巴菲特 & 段永平',
+    style: '价值投资',
+    philosophy: '强调企业内在价值、安全边际、长期持有优质股票',
+    avatar: '🧓',
+  },
+  {
+    name: '詹姆斯·西蒙斯',
+    style: '量化投资',
+    philosophy: '通过数学模型和算法捕捉市场短期定价偏差',
+    avatar: '🔢',
+  },
+  {
+    name: '红杉资本',
+    style: '风险投资',
+    philosophy: '寻找具有颠覆性创新和高速增长潜力的早期公司',
+    avatar: '🚀',
+  },
+  {
+    name: '贝莱德',
+    style: '被动投资',
+    philosophy: '低成本指数化投资，分散风险，追求市场平均收益',
+    avatar: '📊',
+  },
+  {
+    name: '雷达里奥 & 索罗斯',
+    style: '宏观对冲',
+    philosophy: '基于宏观经济周期和央行政策进行大势研判和仓位对冲',
+    avatar: '🌐',
+  },
+];
+
+async function runMultiAgentDiscussion(context: MultiAgentContext, llmClient: LLMClient) {
+  // 构建分析上下文摘要
+  const contextSummary = buildContextSummary(context);
+
+  // 让每个Agent发表观点
+  const agentViews = await Promise.all(
+    INVESTMENT_AGENTS.map(agent => getAgentView(agent, contextSummary, llmClient))
+  );
+
+  // 让Agent之间进行讨论
+  const discussions = await runAgentDiscussions(agentViews, contextSummary, llmClient);
+
+  // 得出共识结论
+  const consensus = await deriveConsensus(agentViews, discussions, contextSummary, llmClient);
+
+  return {
+    agents: INVESTMENT_AGENTS.map((agent, idx) => ({
+      ...agent,
+      view: agentViews[idx],
+    })),
+    discussions,
+    consensus,
+    summary: `五位顶级投资大师从价值投资、量化投资、风险投资、被动投资、宏观对冲五个维度对当前市场进行深入讨论。`,
+  };
+}
+
+function buildContextSummary(context: MultiAgentContext): string {
+  const parts: string[] = [];
+
+  if (context.topTopic) {
+    parts.push(`【当前热点】${context.topTopic.topic}`);
+  }
+
+  if (context.historicalAnalysis) {
+    const hist = context.historicalAnalysis;
+    const events = hist.historicalEvents || [];
+    if (events.length > 0) {
+      parts.push(`【历史借鉴】近两年类似事件：${events.map((e: any) => `${e.year}年${e.event.slice(0, 30)}...`).join('；')}`);
+    }
+    if (hist.investorAdvice) {
+      parts.push(`【投资建议】${hist.investorAdvice.slice(0, 100)}...`);
+    }
+  }
+
+  if (context.positionTracking) {
+    const pos = context.positionTracking;
+    const positions = pos.investorPositions || [];
+    if (positions.length > 0) {
+      const topViews = positions.slice(0, 3).map((p: any) => `${p.investorName}（${p.position}/${p.action}）`).join('、');
+      parts.push(`【大佬仓位】${topViews}`);
+    }
+  }
+
+  if (context.supplyDemandAnalysis) {
+    const sd = context.supplyDemandAnalysis;
+    parts.push(`【供需分析】${sd.asset || '相关资产'}：供应${sd.supply?.trend || '待分析'}，需求${sd.demand?.trend || '待分析'}，价格展望${sd.priceOutlook || '待分析'}`);
+  }
+
+  if (context.chainImpactAnalysis) {
+    const chain = context.chainImpactAnalysis;
+    const severity = [chain.upstreamImpact?.severity, chain.midstreamImpact?.severity, chain.downstreamImpact?.severity]
+      .filter(Boolean)
+      .join('/');
+    parts.push(`【产业链】整体影响：${chain.overallImpact || '待分析'}（上中下游冲击程度：${severity}）`);
+  }
+
+  return parts.join('\n\n');
+}
+
+async function getAgentView(agent: Agent, contextSummary: string, llmClient: LLMClient): Promise<string> {
+  const prompt = `你是一位${agent.style}大师${agent.name}。
+
+【你的投资理念】
+${agent.philosophy}
+
+【当前市场背景】
+${contextSummary}
+
+请从你的投资风格出发，分析当前市场形势，给出你的投资观点和策略建议。
+
+输出JSON（只输出JSON）：
+{
+  "view": "你的完整投资观点和策略（200字以内）",
+  "keyAssets": ["你关注的核心资产1", "核心资产2"],
+  "position": "看多/看空/中性",
+  "timeframe": "短期/中期/长期",
+  "riskLevel": "高/中/低"
+}`;
+
+  try {
+    const response = await llmClient.invoke([
+      { role: 'system', content: '你是专业投资顾问，回答必须是JSON格式。' },
+      { role: 'user', content: prompt },
+    ], { temperature: 0.4 });
+
+    const content = response.content;
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      try {
+        const result = JSON.parse(jsonMatch[0]);
+        return result.view || '暂无观点';
+      } catch (e) {
+        // 尝试修复JSON
+        try {
+          const cleaned = jsonMatch[0].replace(/[\u0000-\u001F]+/g, '').replace(/\n/g, ' ');
+          const result = JSON.parse(cleaned);
+          return result.view || '暂无观点';
+        } catch (e2) {
+          return '观点生成失败';
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Agent view error:', error);
+  }
+
+  return '观点生成失败';
+}
+
+async function runAgentDiscussions(agentViews: string[], contextSummary: string, llmClient: LLMClient): Promise<any[]> {
+  // 选择几个关键讨论点
+  const discussionTopics = [
+    {
+      topic: '价值投资 vs 量化投资：哪种策略更适合当前市场？',
+      agents: [INVESTMENT_AGENTS[0].name, INVESTMENT_AGENTS[1].name],
+    },
+    {
+      topic: '风险投资与被动投资：如何平衡创新机遇与稳健配置？',
+      agents: [INVESTMENT_AGENTS[2].name, INVESTMENT_AGENTS[3].name],
+    },
+    {
+      topic: '宏观对冲视角：当前地缘政治风险下的最佳仓位配置',
+      agents: [INVESTMENT_AGENTS[4].name, INVESTMENT_AGENTS[0].name],
+    },
+  ];
+
+  const discussions = [];
+
+  for (const dt of discussionTopics) {
+    const prompt = `当前市场背景：
+${contextSummary}
+
+${dt.agents[0]}和${dt.agents[1]}就以下话题展开讨论：
+
+【讨论话题】${dt.topic}
+
+请模拟这两位投资大师的观点交锋，给出讨论结果。
+
+输出JSON（只输出JSON）：
+{
+  "topic": "${dt.topic}",
+  "participants": ["${dt.agents[0]}", "${dt.agents[1]}"],
+  "viewpoint1": "${dt.agents[0]}的核心观点（100字内）",
+  "viewpoint2": "${dt.agents[1]}的核心观点（100字内）",
+  "conclusion": "两者的共识或分歧总结（80字内）"
+}`;
+
+    try {
+      const response = await llmClient.invoke([
+        { role: 'system', content: '你是专业金融分析师，擅长模拟不同投资风格的对话。' },
+        { role: 'user', content: prompt },
+      ], { temperature: 0.5 });
+
+      const content = response.content;
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      
+      if (jsonMatch) {
+        try {
+          const result = JSON.parse(jsonMatch[0]);
+          discussions.push(result);
+        } catch (e) {
+          discussions.push({
+            topic: dt.topic,
+            participants: dt.agents,
+            viewpoint1: '讨论未能生成',
+            viewpoint2: '讨论未能生成',
+            conclusion: '请关注后续分析',
+          });
+        }
+      }
+    } catch (error) {
+      discussions.push({
+        topic: dt.topic,
+        participants: dt.agents,
+        viewpoint1: '讨论未能生成',
+        viewpoint2: '讨论未能生成',
+        conclusion: '请关注后续分析',
+      });
+    }
+  }
+
+  return discussions;
+}
+
+async function deriveConsensus(
+  agentViews: string[], 
+  discussions: any[], 
+  contextSummary: string,
+  llmClient: LLMClient
+): Promise<any> {
+  const viewsText = INVESTMENT_AGENTS.map((a, i) => `${a.name}（${a.style}）：${agentViews[i]}`).join('\n\n');
+  
+  const discussionsText = discussions.map((d: any) => 
+    `【${d.topic}】\n${d.participants[0]}：${d.viewpoint1}\n${d.participants[1]}：${d.viewpoint2}\n共识：${d.conclusion}`
+  ).join('\n\n');
+
+  const prompt = `基于以下五位顶级投资大师的观点和讨论，得出共识结论：
+
+【大师观点】
+${viewsText}
+
+【观点交锋】
+${discussionsText}
+
+请综合分析，得出共识结论和投资建议。
+
+输出JSON（只输出JSON）：
+{
+  "consensusView": "五位大师的共识观点（100字内）",
+  "recommendedAssets": ["推荐配置的资产1", "资产2", "资产3"],
+  "positionStrategy": "仓位策略建议",
+  "riskWarning": "需要关注的风险",
+  "actionItems": ["具体行动建议1", "行动建议2", "行动建议3"]
+}`;
+
+  try {
+    const response = await llmClient.invoke([
+      { role: 'system', content: '你是专业金融分析师，擅长归纳投资共识。' },
+      { role: 'user', content: prompt },
+    ], { temperature: 0.3 });
+
+    const content = response.content;
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      try {
+        const result = JSON.parse(jsonMatch[0]);
+        return result;
+      } catch (e) {
+        try {
+          const cleaned = jsonMatch[0].replace(/[\u0000-\u001F]+/g, '').replace(/\n/g, ' ');
+          return JSON.parse(cleaned);
+        } catch (e2) {
+          return {
+            consensusView: '共识分析生成失败',
+            recommendedAssets: [],
+            positionStrategy: '待确认',
+            riskWarning: '市场有风险',
+            actionItems: ['分散投资', '控制仓位'],
+          };
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Consensus error:', error);
+  }
+
+  return {
+    consensusView: '共识分析进行中',
+    recommendedAssets: [],
+    positionStrategy: '待确认',
+    riskWarning: '市场有风险',
+    actionItems: ['分散投资', '控制仓位'],
+  };
 }
 
 // ========== 产业链冲击分析 ==========

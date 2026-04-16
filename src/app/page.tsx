@@ -9,7 +9,8 @@ import { Progress } from '@/components/ui/progress';
 import { 
   Brain, DollarSign, Newspaper, Globe, Link2, ExternalLink, Info,
   RefreshCw, CheckCircle2, Circle, Loader2, AlertCircle, 
-  TrendingUp, BarChart3, Clock, BookOpen, ArrowRight, Users, Activity, Network
+  TrendingUp, BarChart3, Clock, BookOpen, ArrowRight, Users, Activity, Network,
+  MessageSquare, Scale, Target
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { INVESTORS, Investor } from '@/lib/investors';
@@ -118,6 +119,30 @@ interface AnalysisResult {
     investmentImplication: string;
     sourceNews?: any[];
   };
+  multiAgentDiscussion?: {
+    agents: Array<{
+      name: string;
+      style: string;
+      philosophy: string;
+      avatar: string;
+      view: string;
+    }>;
+    discussions: Array<{
+      topic: string;
+      participants: string[];
+      viewpoint1: string;
+      viewpoint2: string;
+      conclusion: string;
+    }>;
+    consensus: {
+      consensusView: string;
+      recommendedAssets: string[];
+      positionStrategy: string;
+      riskWarning: string;
+      actionItems: string[];
+    };
+    summary: string;
+  };
 }
 
 interface HistoricalRecord {
@@ -141,6 +166,7 @@ export default function FinanceInsightPage() {
     { step: 5, stepName: '大佬仓位', status: 'pending' },
     { step: 6, stepName: '供需分析', status: 'pending' },
     { step: 7, stepName: '产业链分析', status: 'pending' },
+    { step: 8, stepName: 'Agent讨论', status: 'pending' },
   ]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -655,6 +681,28 @@ export default function FinanceInsightPage() {
             )}
           </div>
         )}
+
+        {/* Agent讨论 */}
+        {displayData.multiAgentDiscussion && (
+          <div className="p-4 rounded-lg bg-pink-50 dark:bg-pink-950/20 border border-pink-200 dark:border-pink-800">
+            <h5 className="font-semibold text-sm mb-2 flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-pink-600" />
+              Agent投资讨论
+            </h5>
+            <p className="text-sm text-muted-foreground mb-2">
+              {displayData.multiAgentDiscussion.consensus?.consensusView || '讨论进行中...'}
+            </p>
+            {displayData.multiAgentDiscussion.consensus?.recommendedAssets && displayData.multiAgentDiscussion.consensus.recommendedAssets.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {displayData.multiAgentDiscussion.consensus.recommendedAssets.slice(0, 3).map((asset, idx) => (
+                  <Badge key={idx} variant="outline" className="text-xs bg-pink-100/50 dark:bg-pink-900/30">
+                    {asset}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </>
     );
   };
@@ -714,7 +762,7 @@ export default function FinanceInsightPage() {
                       财经热点智能分析
                     </CardTitle>
                     <CardDescription>
-                      AI驱动的七步分析：爬取 → 归类 → 排序 → 历史回顾 → 大佬仓位 → 供需分析 → 产业链
+                      AI驱动的八步分析：爬取 → 归类 → 排序 → 历史回顾 → 大佬仓位 → 供需分析 → 产业链 → Agent讨论
                     </CardDescription>
                   </div>
                   <Button
@@ -1540,6 +1588,169 @@ export default function FinanceInsightPage() {
                               </a>
                             ))}
                           </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* 多Agent投资讨论 */}
+                {analysisResult.multiAgentDiscussion && (
+                  <Card className="border-2 border-pink-200 dark:border-pink-800">
+                    <CardHeader className="bg-gradient-to-r from-pink-50 to-rose-50 dark:from-pink-950/30 dark:to-rose-950/30">
+                      <CardTitle className="flex items-center gap-2">
+                        <MessageSquare className="h-5 w-5 text-pink-600 dark:text-pink-400" />
+                        五大大师投资讨论
+                      </CardTitle>
+                      <CardDescription>
+                        价值投资 × 量化投资 × 风险投资 × 被动投资 × 宏观对冲
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6 pt-4">
+                      {/* 摘要 */}
+                      <div className="p-4 rounded-lg bg-pink-50 dark:bg-pink-950/30 border border-pink-200 dark:border-pink-800">
+                        <p className="text-sm text-muted-foreground">
+                          {analysisResult.multiAgentDiscussion.summary}
+                        </p>
+                      </div>
+
+                      {/* 大师观点 */}
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center gap-2">
+                          <Scale className="h-4 w-4" />
+                          五大大师观点
+                        </h4>
+                        <div className="space-y-3">
+                          {analysisResult.multiAgentDiscussion.agents.map((agent, idx) => (
+                            <div 
+                              key={idx}
+                              className="p-4 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xl">{agent.avatar}</span>
+                                <div>
+                                  <span className="font-semibold">{agent.name}</span>
+                                  <Badge variant="secondary" className="ml-2 text-xs">
+                                    {agent.style}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <p className="text-sm text-muted-foreground leading-relaxed">
+                                {agent.view}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 观点交锋 */}
+                      {analysisResult.multiAgentDiscussion.discussions && analysisResult.multiAgentDiscussion.discussions.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold mb-3 flex items-center gap-2">
+                            <MessageSquare className="h-4 w-4" />
+                            观点交锋
+                          </h4>
+                          <div className="space-y-4">
+                            {analysisResult.multiAgentDiscussion.discussions.map((discussion, idx) => (
+                              <div 
+                                key={idx}
+                                className="p-4 rounded-lg bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/50 border border-slate-200 dark:border-slate-700"
+                              >
+                                <h5 className="font-medium text-sm mb-3 text-primary">
+                                  {discussion.topic}
+                                </h5>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div className="p-3 rounded bg-blue-50/50 dark:bg-blue-950/30">
+                                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">
+                                      {discussion.participants[0]}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {discussion.viewpoint1}
+                                    </p>
+                                  </div>
+                                  <div className="p-3 rounded bg-orange-50/50 dark:bg-orange-950/30">
+                                    <p className="text-xs font-medium text-orange-600 dark:text-orange-400 mb-1">
+                                      {discussion.participants[1]}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {discussion.viewpoint2}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="mt-3 p-2 rounded bg-green-50/50 dark:bg-green-950/30">
+                                  <p className="text-xs">
+                                    <span className="font-medium text-green-600 dark:text-green-400">共识：</span>
+                                    <span className="text-muted-foreground">{discussion.conclusion}</span>
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 共识结论 */}
+                      {analysisResult.multiAgentDiscussion.consensus && (
+                        <div className="p-4 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800">
+                          <h4 className="font-semibold mb-3 flex items-center gap-2">
+                            <Target className="h-4 w-4 text-emerald-600" />
+                            共识结论
+                          </h4>
+                          
+                          <div className="mb-3">
+                            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400 mb-1">
+                              {analysisResult.multiAgentDiscussion.consensus.consensusView}
+                            </p>
+                          </div>
+
+                          {/* 推荐资产 */}
+                          {analysisResult.multiAgentDiscussion.consensus.recommendedAssets && analysisResult.multiAgentDiscussion.consensus.recommendedAssets.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-xs font-medium text-muted-foreground mb-2">推荐配置资产：</p>
+                              <div className="flex flex-wrap gap-2">
+                                {analysisResult.multiAgentDiscussion.consensus.recommendedAssets.map((asset, idx) => (
+                                  <Badge key={idx} variant="outline" className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
+                                    {asset}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 仓位策略 */}
+                          {analysisResult.multiAgentDiscussion.consensus.positionStrategy && (
+                            <div className="mb-3">
+                              <p className="text-xs font-medium text-muted-foreground mb-1">仓位策略：</p>
+                              <p className="text-sm text-muted-foreground">
+                                {analysisResult.multiAgentDiscussion.consensus.positionStrategy}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* 风险提示 */}
+                          {analysisResult.multiAgentDiscussion.consensus.riskWarning && (
+                            <div className="mb-3 p-3 rounded bg-yellow-50/50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800">
+                              <p className="text-xs font-medium text-yellow-700 dark:text-yellow-400 mb-1">风险提示：</p>
+                              <p className="text-sm text-muted-foreground">
+                                {analysisResult.multiAgentDiscussion.consensus.riskWarning}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* 具体行动 */}
+                          {analysisResult.multiAgentDiscussion.consensus.actionItems && analysisResult.multiAgentDiscussion.consensus.actionItems.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-2">行动建议：</p>
+                              <div className="space-y-1">
+                                {analysisResult.multiAgentDiscussion.consensus.actionItems.map((item, idx) => (
+                                  <div key={idx} className="flex items-start gap-2 text-sm">
+                                    <ArrowRight className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                                    <span className="text-muted-foreground">{item}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </CardContent>
