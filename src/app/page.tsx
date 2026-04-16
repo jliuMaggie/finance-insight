@@ -202,7 +202,8 @@ export default function FinanceInsightPage() {
 
       // 创建iframe用于渲染导出内容
       const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'position: absolute; top: -9999px; left: -9999px; width: 1100px; height: 800px; border: none;';
+      iframe.id = 'export-iframe';
+      iframe.style.cssText = 'position: fixed; top: 0; left: 0; width: 1100px; height: 2000px; border: none; visibility: hidden;';
       document.body.appendChild(iframe);
 
       const iframeDoc = iframe.contentDocument!;
@@ -363,14 +364,16 @@ export default function FinanceInsightPage() {
       // 等待iframe加载完成
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // 生成canvas
+      // 生成canvas - 自动获取内容高度
       const canvas = await html2canvas(iframeDoc.body, {
         backgroundColor: '#ffffff',
         scale: 2,
         useCORS: true,
         logging: false,
         width: 1100,
+        height: iframeDoc.body.scrollHeight + 100,
         windowWidth: 1100,
+        windowHeight: iframeDoc.body.scrollHeight + 100,
       });
 
       // 清理iframe
@@ -509,7 +512,7 @@ export default function FinanceInsightPage() {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-              
+
               if (data.type === 'final') {
                 // 所有步骤完成，渲染最终结果
                 setAnalysisSteps(prev => prev.map(s => ({ ...s, status: 'completed' })));
@@ -519,7 +522,7 @@ export default function FinanceInsightPage() {
                 setIsAnalyzing(false);
                 return;
               }
-              
+
               if (data.type === 'error') {
                 setAnalysisError(data.error);
                 setIsAnalyzing(false);
