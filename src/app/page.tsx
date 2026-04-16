@@ -200,14 +200,51 @@ export default function FinanceInsightPage() {
         return;
       }
 
+      // 创建导出专用的包装器
+      const wrapper = document.createElement('div');
+      wrapper.id = 'export-wrapper';
+      wrapper.style.cssText = `
+        position: fixed;
+        top: -9999px;
+        left: -9999px;
+        width: 1200px;
+        background: #ffffff;
+        padding: 24px;
+        font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      `;
+
+      // 克隆内容并清理oklch样式
+      const clone = element.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll('*').forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        // 移除所有包含oklch的内联样式
+        if (htmlEl.style.cssText) {
+          const cleanedCssText = htmlEl.style.cssText
+            .replace(/--[\w-]+:\s*oklch\([^)]+\)/g, 'var(--dummy)')
+            .replace(/oklch\([^)]+\)/g, '#ffffff');
+          htmlEl.style.cssText = cleanedCssText;
+        }
+        // 移除 dark 相关的类
+        htmlEl.classList.remove('dark');
+        htmlEl.className = htmlEl.className.replace(/dark:/g, '');
+      });
+
+      wrapper.appendChild(clone);
+      document.body.appendChild(wrapper);
+
       // 生成canvas
-      const canvas = await html2canvas(element, {
+      const canvas = await html2canvas(wrapper, {
         backgroundColor: '#ffffff',
         scale: 2,
         useCORS: true,
         logging: false,
         allowTaint: true,
+        width: 1200,
+        windowWidth: 1200,
       });
+
+      // 清理临时元素
+      document.body.removeChild(wrapper);
 
       // 转换为 base64
       const imageData = canvas.toDataURL('image/png');
