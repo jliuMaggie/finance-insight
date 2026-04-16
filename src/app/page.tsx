@@ -181,6 +181,68 @@ export default function FinanceInsightPage() {
   const [historicalRecords, setHistoricalRecords] = useState<HistoricalRecord[]>([]);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
 
+  // 导出状态
+  const [isExporting, setIsExporting] = useState(false);
+
+  // 导出长图功能
+  const exportToImage = async () => {
+    if (!analysisResult || isExporting) return;
+
+    setIsExporting(true);
+    try {
+      // 动态导入 html2canvas
+      const html2canvas = (await import('html2canvas')).default;
+
+      // 获取分析结果区域的 DOM 元素
+      const element = document.getElementById('analysis-result');
+      if (!element) {
+        alert('无法找到分析结果区域');
+        return;
+      }
+
+      // 生成canvas
+      const canvas = await html2canvas(element, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        allowTaint: true,
+      });
+
+      // 转换为 base64
+      const imageData = canvas.toDataURL('image/png');
+
+      // 上传到服务器
+      const formData = new FormData();
+      formData.append('image', imageData);
+      formData.append('title', analysisResult.topTopic?.topic || '金融洞察报告');
+
+      const response = await fetch('/api/export/image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('上传失败');
+      }
+
+      const result = await response.json();
+
+      // 下载图片
+      const link = document.createElement('a');
+      link.href = result.downloadUrl;
+      link.download = `金融洞察_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.png`;
+      link.target = '_blank';
+      link.click();
+
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('导出失败，请重试');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // 加载历史记录
   useEffect(() => {
     const saved = localStorage.getItem('analysisHistory');
@@ -862,8 +924,29 @@ export default function FinanceInsightPage() {
             {/* 分析结果展示 */}
             {analysisResult && (
               <>
+                {/* 导出按钮 */}
+                <div className="flex justify-end">
+                  <Button
+                    onClick={exportToImage}
+                    disabled={isExporting}
+                    className="gap-2 bg-green-600 hover:bg-green-700"
+                  >
+                    {isExporting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        导出中...
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink className="h-4 w-4" />
+                        导出长图分享
+                      </>
+                    )}
+                  </Button>
+                </div>
+
                 {/* 热度排名 TOP 主题 */}
-                <Card>
+                <Card id="analysis-result">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <BarChart3 className="h-5 w-5 text-orange-600 dark:text-orange-400" />
