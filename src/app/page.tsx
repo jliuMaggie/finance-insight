@@ -9,7 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   Brain, DollarSign, Newspaper, Globe, Link2, ExternalLink, Info,
   RefreshCw, CheckCircle2, Circle, Loader2, AlertCircle, 
-  TrendingUp, BarChart3, Clock, BookOpen, ArrowRight, Users, Activity
+  TrendingUp, BarChart3, Clock, BookOpen, ArrowRight, Users, Activity, Network
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { INVESTORS, Investor } from '@/lib/investors';
@@ -90,6 +90,34 @@ interface AnalysisResult {
     keyFactors: string[];
     sourceNews?: any[];
   };
+  chainImpactAnalysis?: {
+    asset: string;
+    affectedAssets: string[];
+    summary: string;
+    upstreamImpact: {
+      description: string;
+      affectedSectors: string[];
+      severity: string;
+    };
+    midstreamImpact: {
+      description: string;
+      affectedSectors: string[];
+      severity: string;
+    };
+    downstreamImpact: {
+      description: string;
+      affectedSectors: string[];
+      severity: string;
+    };
+    overallImpact: string;
+    regionalImpact: {
+      mostAffected: string[];
+      description: string;
+    };
+    keyCompanies: string[];
+    investmentImplication: string;
+    sourceNews?: any[];
+  };
 }
 
 interface HistoricalRecord {
@@ -112,6 +140,7 @@ export default function FinanceInsightPage() {
     { step: 4, stepName: '历史分析', status: 'pending' },
     { step: 5, stepName: '大佬仓位', status: 'pending' },
     { step: 6, stepName: '供需分析', status: 'pending' },
+    { step: 7, stepName: '产业链分析', status: 'pending' },
   ]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -600,6 +629,32 @@ export default function FinanceInsightPage() {
             )}
           </div>
         )}
+
+        {/* 产业链分析 */}
+        {displayData.chainImpactAnalysis && (
+          <div className="p-4 rounded-lg bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800">
+            <h5 className="font-semibold text-sm mb-2 flex items-center gap-2">
+              <Network className="h-4 w-4 text-violet-600" />
+              产业链冲击 - {displayData.chainImpactAnalysis.asset}
+            </h5>
+            <p className="text-sm text-muted-foreground mb-2">
+              {displayData.chainImpactAnalysis.summary}
+            </p>
+            {displayData.chainImpactAnalysis.overallImpact && (
+              <Badge 
+                variant="outline" 
+                className={cn(
+                  "text-xs",
+                  displayData.chainImpactAnalysis.overallImpact.includes('严重') ? "bg-red-100 text-red-700" :
+                  displayData.chainImpactAnalysis.overallImpact.includes('分化') ? "bg-yellow-100 text-yellow-700" :
+                  "bg-green-100 text-green-700"
+                )}
+              >
+                {displayData.chainImpactAnalysis.overallImpact}
+              </Badge>
+            )}
+          </div>
+        )}
       </>
     );
   };
@@ -659,7 +714,7 @@ export default function FinanceInsightPage() {
                       财经热点智能分析
                     </CardTitle>
                     <CardDescription>
-                      AI驱动的六步分析：爬取 → 归类 → 排序 → 历史回顾 → 大佬仓位 → 供需分析
+                      AI驱动的七步分析：爬取 → 归类 → 排序 → 历史回顾 → 大佬仓位 → 供需分析 → 产业链
                     </CardDescription>
                   </div>
                   <Button
@@ -1255,6 +1310,221 @@ export default function FinanceInsightPage() {
                           </h4>
                           <div className="space-y-2">
                             {analysisResult.supplyDemandAnalysis.sourceNews.slice(0, 4).map((news: any, idx: number) => (
+                              <a 
+                                key={idx}
+                                href={news.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium line-clamp-1">{news.title}</p>
+                                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{news.snippet}</p>
+                                </div>
+                                <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* 产业链冲击分析 */}
+                {analysisResult.chainImpactAnalysis && (
+                  <Card className="border-2 border-violet-200 dark:border-violet-800">
+                    <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30">
+                      <CardTitle className="flex items-center gap-2">
+                        <Network className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                        产业链冲击分析
+                      </CardTitle>
+                      <CardDescription>
+                        {analysisResult.chainImpactAnalysis.asset}及相关产业链影响
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 pt-4">
+                      {/* 概述 */}
+                      <div className="p-4 rounded-lg bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800">
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {analysisResult.chainImpactAnalysis.summary}
+                        </p>
+                      </div>
+
+                      {/* 上中下游冲击 */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* 上游 */}
+                        {analysisResult.chainImpactAnalysis.upstreamImpact && (
+                          <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                            <h4 className="font-semibold mb-2 flex items-center gap-2">
+                              <TrendingUp className="h-4 w-4 text-blue-600" />
+                              上游产业
+                              <Badge 
+                                variant="outline" 
+                                className={cn(
+                                  "ml-auto text-xs",
+                                  analysisResult.chainImpactAnalysis.upstreamImpact.severity === '严重' ? "bg-red-100 text-red-700" :
+                                  analysisResult.chainImpactAnalysis.upstreamImpact.severity === '中等' ? "bg-yellow-100 text-yellow-700" :
+                                  "bg-green-100 text-green-700"
+                                )}
+                              >
+                                {analysisResult.chainImpactAnalysis.upstreamImpact.severity}
+                              </Badge>
+                            </h4>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {analysisResult.chainImpactAnalysis.upstreamImpact.description}
+                            </p>
+                            {analysisResult.chainImpactAnalysis.upstreamImpact.affectedSectors.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {analysisResult.chainImpactAnalysis.upstreamImpact.affectedSectors.map((sector, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    {sector}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 中游 */}
+                        {analysisResult.chainImpactAnalysis.midstreamImpact && (
+                          <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                            <h4 className="font-semibold mb-2 flex items-center gap-2">
+                              <BarChart3 className="h-4 w-4 text-amber-600" />
+                              中游产业
+                              <Badge 
+                                variant="outline" 
+                                className={cn(
+                                  "ml-auto text-xs",
+                                  analysisResult.chainImpactAnalysis.midstreamImpact.severity === '严重' ? "bg-red-100 text-red-700" :
+                                  analysisResult.chainImpactAnalysis.midstreamImpact.severity === '中等' ? "bg-yellow-100 text-yellow-700" :
+                                  "bg-green-100 text-green-700"
+                                )}
+                              >
+                                {analysisResult.chainImpactAnalysis.midstreamImpact.severity}
+                              </Badge>
+                            </h4>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {analysisResult.chainImpactAnalysis.midstreamImpact.description}
+                            </p>
+                            {analysisResult.chainImpactAnalysis.midstreamImpact.affectedSectors.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {analysisResult.chainImpactAnalysis.midstreamImpact.affectedSectors.map((sector, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    {sector}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 下游 */}
+                        {analysisResult.chainImpactAnalysis.downstreamImpact && (
+                          <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                            <h4 className="font-semibold mb-2 flex items-center gap-2">
+                              <TrendingUp className="h-4 w-4 text-green-600" />
+                              下游产业
+                              <Badge 
+                                variant="outline" 
+                                className={cn(
+                                  "ml-auto text-xs",
+                                  analysisResult.chainImpactAnalysis.downstreamImpact.severity === '严重' ? "bg-red-100 text-red-700" :
+                                  analysisResult.chainImpactAnalysis.downstreamImpact.severity === '中等' ? "bg-yellow-100 text-yellow-700" :
+                                  "bg-green-100 text-green-700"
+                                )}
+                              >
+                                {analysisResult.chainImpactAnalysis.downstreamImpact.severity}
+                              </Badge>
+                            </h4>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {analysisResult.chainImpactAnalysis.downstreamImpact.description}
+                            </p>
+                            {analysisResult.chainImpactAnalysis.downstreamImpact.affectedSectors.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {analysisResult.chainImpactAnalysis.downstreamImpact.affectedSectors.map((sector, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    {sector}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 整体影响评估 */}
+                      {analysisResult.chainImpactAnalysis.overallImpact && (
+                        <div className="p-4 rounded-lg bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/50 border border-slate-200 dark:border-slate-700">
+                          <h4 className="font-semibold mb-2">整体影响评估</h4>
+                          <Badge 
+                            variant="outline" 
+                            className={cn(
+                              "text-sm",
+                              analysisResult.chainImpactAnalysis.overallImpact.includes('严重') ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                              analysisResult.chainImpactAnalysis.overallImpact.includes('分化') ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
+                              "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            )}
+                          >
+                            {analysisResult.chainImpactAnalysis.overallImpact}
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* 地区差异 */}
+                      {analysisResult.chainImpactAnalysis.regionalImpact && analysisResult.chainImpactAnalysis.regionalImpact.mostAffected.length > 0 && (
+                        <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                          <h4 className="font-semibold mb-2 text-sm">地区差异</h4>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            {analysisResult.chainImpactAnalysis.regionalImpact.description}
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {analysisResult.chainImpactAnalysis.regionalImpact.mostAffected.map((region, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {region}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 关键公司 */}
+                      {analysisResult.chainImpactAnalysis.keyCompanies && analysisResult.chainImpactAnalysis.keyCompanies.length > 0 && (
+                        <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                          <h4 className="font-semibold mb-2 text-sm">产业链关键公司</h4>
+                          <div className="space-y-1">
+                            {analysisResult.chainImpactAnalysis.keyCompanies.slice(0, 5).map((company, idx) => (
+                              <p key={idx} className="text-xs text-muted-foreground flex items-start gap-1">
+                                <span className="text-violet-500">•</span>
+                                {company}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 投资启示 */}
+                      {analysisResult.chainImpactAnalysis.investmentImplication && (
+                        <div className="p-4 rounded-lg bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/30 border border-indigo-200 dark:border-indigo-800">
+                          <h4 className="font-semibold mb-2 flex items-center gap-2">
+                            <Brain className="h-4 w-4 text-indigo-600" />
+                            投资启示
+                          </h4>
+                          <p className="text-sm text-muted-foreground">
+                            {analysisResult.chainImpactAnalysis.investmentImplication}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* 信息来源 */}
+                      {analysisResult.chainImpactAnalysis.sourceNews && analysisResult.chainImpactAnalysis.sourceNews.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold mb-3 flex items-center gap-2">
+                            <ExternalLink className="h-4 w-4" />
+                            信息来源
+                          </h4>
+                          <div className="space-y-2">
+                            {analysisResult.chainImpactAnalysis.sourceNews.slice(0, 4).map((news: any, idx: number) => (
                               <a 
                                 key={idx}
                                 href={news.url}

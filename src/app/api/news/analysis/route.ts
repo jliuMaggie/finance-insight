@@ -300,6 +300,30 @@ export async function POST(request: Request) {
           data: supplyDemandAnalysis,
         });
 
+        // ========== 步骤7：产业链冲击分析 ==========
+        send({
+          step: 7,
+          stepName: '产业链分析',
+          status: 'running',
+          startTime: getTimestamp(),
+        });
+
+        let chainImpactAnalysis = null;
+        if (rankedTopics[0]) {
+          chainImpactAnalysis = await analyzeChainImpact(rankedTopics[0], supplyDemandAnalysis?.affectedAssets || [], searchClient, llmClient);
+        }
+
+        const step7EndTime = getTimestamp();
+        send({
+          step: 7,
+          stepName: '产业链分析',
+          status: 'completed',
+          startTime: step7EndTime - 4000,
+          endTime: step7EndTime,
+          duration: 4000,
+          data: chainImpactAnalysis,
+        });
+
         // ========== 最终结果 ==========
         controller.enqueue(sendSSE({
           type: 'final',
@@ -315,6 +339,7 @@ export async function POST(request: Request) {
             } : null,
             positionTracking,
             supplyDemandAnalysis,
+            chainImpactAnalysis,
           },
         }, encoder));
 
@@ -1033,6 +1058,273 @@ function generateSupplyDemandSearchTerms(asset: string): string[] {
     `${asset} 需求 消费 最新`,
     `${asset} 市场 供需 平衡`,
     `${asset} 库存 变化`,
+  ];
+
+  return baseTerms[asset] || defaultTerms;
+}
+
+// ========== 产业链冲击分析 ==========
+async function analyzeChainImpact(
+  topic: TopicCluster, 
+  affectedAssets: string[],
+  searchClient: SearchClient,
+  llmClient: LLMClient
+) {
+  const topicName = topic.topic;
+  
+  // 如果没有传入受影响资产，先识别
+  let assets = affectedAssets.length > 0 ? affectedAssets : [];
+  
+  if (assets.length === 0) {
+    const assetPrompt = `分析"${topicName}"这一热点事件，找出其影响的主要资产类别。
+
+输出JSON（只输出JSON，不要其他内容）：
+{
+  "affectedAssets": ["资产类别1", "资产类别2"]
+}`;
+
+    try {
+      const assetResponse = await llmClient.invoke([
+        { role: 'system', content: '你是专业金融分析师，只输出JSON。' },
+        { role: 'user', content: assetPrompt },
+      ], { temperature: 0.3 });
+      
+      const assetJsonMatch = assetResponse.content.match(/\{[\s\S]*\}/);
+      if (assetJsonMatch) {
+        const parsed = JSON.parse(assetJsonMatch[0]);
+        assets = parsed.affectedAssets || [];
+      }
+    } catch (error) {
+      console.error('Asset identification error:', error);
+    }
+
+    // 默认映射
+    if (assets.length === 0) {
+      if (topicName.includes('中东') || topicName.includes('伊朗') || topicName.includes('原油') || topicName.includes('石油')) {
+        assets = ['原油'];
+      } else if (topicName.includes('黄金')) {
+        assets = ['黄金'];
+      } else if (topicName.includes('科技') || topicName.includes('AI')) {
+        assets = ['科技股'];
+      } else {
+        assets = ['原油'];
+      }
+    }
+  }
+
+  const primaryAsset = assets[0];
+
+  // 根据不同资产生成产业链搜索词
+  const searchTerms = generateChainSearchTerms(primaryAsset, topicName);
+
+  let allChainNews: any[] = [];
+  
+  try {
+    // 并行搜索产业链相关数据
+    const searchResults = await Promise.all(
+      searchTerms.map(term => 
+        searchClient.advancedSearch(term, { 
+          searchType: 'web_summary', 
+          count: 8, 
+          needSummary: true,
+          timeRange: '3m'
+        }).catch(() => ({ web_items: [] }))
+      )
+    );
+
+    // 合并去重结果
+    const seenTitles = new Set<string>();
+    for (const result of searchResults) {
+      for (const item of result.web_items || []) {
+        if (!seenTitles.has(item.title)) {
+          seenTitles.add(item.title);
+          allChainNews.push({
+            title: item.title,
+            snippet: item.snippet,
+            url: item.url,
+            time: item.publish_time || '',
+            asset: primaryAsset,
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Chain impact search error:', error);
+  }
+
+  // 如果没有搜索到结果，返回空
+  if (allChainNews.length === 0) {
+    return {
+      asset: primaryAsset,
+      affectedAssets: assets,
+      summary: `暂无${primaryAsset}产业链冲击的最新数据`,
+      upstreamImpact: null,
+      midstreamImpact: null,
+      downstreamImpact: null,
+      overallImpact: '待分析',
+      keyCompanies: [],
+      sourceNews: [],
+    };
+  }
+
+  // 使用LLM分析产业链冲击
+  const newsContext = allChainNews.slice(0, 15).map(n => 
+    `标题: ${n.title}\n摘要: ${n.snippet}`
+  ).join('\n\n');
+
+  const analysisPrompt = `根据以下市场新闻，分析${primaryAsset}及其相关产业链受到的冲击影响：
+
+资产类型：${primaryAsset}
+热点主题：${topicName}
+
+新闻内容：
+${newsContext}
+
+输出JSON（只输出JSON）：
+{
+  "summary": "简要总结产业链整体冲击情况（60字内）",
+  "upstreamImpact": {
+    "description": "上游产业受影响描述",
+    "affectedSectors": ["受冲击的上游行业1", "行业2"],
+    "severity": "严重/中等/轻微"
+  },
+  "midstreamImpact": {
+    "description": "中游产业受影响描述",
+    "affectedSectors": ["受冲击的中游行业1", "行业2"],
+    "severity": "严重/中等/轻微"
+  },
+  "downstreamImpact": {
+    "description": "下游产业受影响描述",
+    "affectedSectors": ["受冲击的下游行业1", "行业2"],
+    "severity": "严重/中等/轻微"
+  },
+  "overallImpact": "产业链整体影响评估（冲击严重/影响有限/结构分化）",
+  "regionalImpact": {
+    "mostAffected": ["受冲击最严重的地区1", "地区2"],
+    "description": "地区差异描述"
+  },
+  "keyCompanies": ["受关注的产业链关键公司1", "公司2"],
+  "investmentImplication": "投资启示"
+}`;
+
+  try {
+    const response = await llmClient.invoke([
+      { role: 'system', content: '你是专业金融分析师，回答必须是JSON格式。' },
+      { role: 'user', content: analysisPrompt },
+    ], { temperature: 0.3 });
+
+    const content = response.content;
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      try {
+        const result = JSON.parse(jsonMatch[0]);
+        result.asset = primaryAsset;
+        result.affectedAssets = assets;
+        result.sourceNews = allChainNews.slice(0, 8);
+        return result;
+      } catch (e) {
+        // 尝试修复JSON
+        try {
+          const cleaned = jsonMatch[0]
+            .replace(/[\u0000-\u001F]+/g, '')
+            .replace(/\n/g, ' ')
+            .replace(/\r/g, '');
+          const result = JSON.parse(cleaned);
+          result.asset = primaryAsset;
+          result.affectedAssets = assets;
+          result.sourceNews = allChainNews.slice(0, 8);
+          return result;
+        } catch (e2) {
+          console.error('Chain impact JSON parse error:', e2);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('LLM error:', error);
+  }
+
+  // 兜底返回
+  return {
+    asset: primaryAsset,
+    affectedAssets: assets,
+    summary: `基于近期市场数据分析${primaryAsset}产业链冲击情况`,
+    upstreamImpact: {
+      description: '上游产业影响待确认',
+      affectedSectors: [],
+      severity: '待分析',
+    },
+    midstreamImpact: {
+      description: '中游产业影响待确认',
+      affectedSectors: [],
+      severity: '待分析',
+    },
+    downstreamImpact: {
+      description: '下游产业影响待确认',
+      affectedSectors: [],
+      severity: '待分析',
+    },
+    overallImpact: '待分析',
+    regionalImpact: {
+      mostAffected: [],
+      description: '地区差异待分析',
+    },
+    keyCompanies: allChainNews.slice(0, 3).map(n => n.title),
+    investmentImplication: '建议关注产业链动态',
+    sourceNews: allChainNews.slice(0, 8),
+  };
+}
+
+// 根据资产类型生成产业链搜索词
+function generateChainSearchTerms(asset: string, topicName: string): string[] {
+  const baseTerms: Record<string, string[]> = {
+    '原油': [
+      '原油涨价 炼油企业 冲击',
+      '石油化工 产业链 影响',
+      '油气田 勘探开发 冲击',
+      '原油运输 航运 影响',
+      '能源密集型企业 成本上升',
+      '石油公司 业绩 最新',
+      '中东局势 能源供应 影响',
+    ],
+    '黄金': [
+      '黄金涨价 珠宝行业 冲击',
+      '黄金矿业 产业链 影响',
+      '央行购金 黄金储备',
+      '黄金首饰 消费 影响',
+      '黄金ETF 投资 影响',
+    ],
+    '天然气': [
+      '天然气涨价 化工行业 影响',
+      'LNG产业链 冲击',
+      '燃气发电 影响',
+      '天然气化工 成本',
+    ],
+    '小麦': [
+      '小麦涨价 面粉企业 冲击',
+      '粮食产业链 通胀影响',
+      '农产品 供应链 冲击',
+      '食品加工 成本上升',
+    ],
+    '科技股': [
+      '科技股 产业链 冲击',
+      '半导体 供应链 影响',
+      'AI芯片 算力成本',
+      '科技公司 业绩 预期',
+    ],
+    '美股': [
+      '美股 上市公司 业绩',
+      '美国经济 企业盈利',
+      '美股 行业分化',
+    ],
+  };
+
+  // 返回对应资产的搜索词，或使用默认搜索词
+  const defaultTerms = [
+    `${asset} 产业链 冲击 影响`,
+    `${asset} 行业 企业 业绩`,
+    `${asset} 成本 价格 影响`,
+    `${topicName} 产业链 影响`,
   ];
 
   return baseTerms[asset] || defaultTerms;
