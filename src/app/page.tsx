@@ -200,166 +200,181 @@ export default function FinanceInsightPage() {
         return;
       }
 
-      // 创建导出专用的干净容器
-      const exportContainer = document.createElement('div');
-      exportContainer.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 1100px;
-        min-height: 100vh;
-        background: #ffffff;
-        padding: 32px;
-        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-        color: #1f2937;
-        line-height: 1.6;
-        z-index: -1;
-      `;
+      // 创建iframe用于渲染导出内容
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position: absolute; top: -9999px; left: -9999px; width: 1100px; height: 800px; border: none;';
+      document.body.appendChild(iframe);
 
-      // 添加标题
-      const title = document.createElement('h1');
-      title.style.cssText = 'font-size: 28px; font-weight: 700; margin-bottom: 8px; color: #1e40af;';
-      title.textContent = '金融智能洞察报告';
-      exportContainer.appendChild(title);
+      const iframeDoc = iframe.contentDocument!;
+      const iframeWin = iframe.contentWindow!;
 
-      // 添加副标题
-      const subtitle = document.createElement('p');
-      subtitle.style.cssText = 'font-size: 14px; color: #6b7280; margin-bottom: 24px;';
-      subtitle.textContent = `生成时间：${new Date().toLocaleString('zh-CN')} | 基于AI八步深度分析`;
-      exportContainer.appendChild(subtitle);
+      // 构建HTML内容
+      iframeDoc.open();
+      iframeDoc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              width: 1100px;
+              padding: 32px;
+              font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+              color: #1f2937;
+              line-height: 1.6;
+              background: #ffffff;
+            }
+            .header { margin-bottom: 16px; }
+            .header h1 { font-size: 28px; font-weight: 700; color: #1e40af; margin-bottom: 8px; }
+            .header p { font-size: 14px; color: #6b7280; }
+            .divider { border: none; border-top: 2px solid #3b82f6; margin: 16px 0 24px; }
+            .topic-card {
+              background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+              border: 2px solid #3b82f6;
+              border-radius: 12px;
+              padding: 20px;
+              margin-bottom: 24px;
+            }
+            .topic-card h2 { font-size: 22px; font-weight: 700; color: #1e3a8a; margin-bottom: 12px; }
+            .topic-card p { font-size: 14px; color: #4b5563; margin-bottom: 8px; }
+            .section {
+              border-radius: 8px;
+              padding: 16px;
+              margin-bottom: 24px;
+            }
+            .section h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+            .section p { font-size: 14px; }
+            .hist-section { background: #fef3c7; border: 1px solid #f59e0b; color: #78350f; }
+            .pos-section { background: #ecfdf5; border: 1px solid #10b981; color: #047857; }
+            .agent-section { background: #f3e8ff; border: 1px solid #a855f7; color: #6b21a8; }
+            .topic-item {
+              display: flex;
+              align-items: center;
+              padding: 12px;
+              margin-bottom: 8px;
+              border-radius: 8px;
+              border: 1px solid #e5e7eb;
+            }
+            .topic-item.top { background: #fff7ed; border-color: #f97316; }
+            .rank-badge {
+              width: 32px; height: 32px; border-radius: 50%;
+              display: flex; align-items: center; justify-content: center;
+              font-weight: 700; color: white; margin-right: 12px;
+            }
+            .rank-1 { background: #f97316; }
+            .rank-2 { background: #6b7280; }
+            .rank-3 { background: #9ca3af; }
+            .topic-info { flex: 1; }
+            .topic-info h4 { font-size: 15px; font-weight: 600; color: #1f2937; }
+            .topic-info p { font-size: 12px; color: #6b7280; }
+            .footer {
+              margin-top: 32px;
+              padding-top: 16px;
+              border-top: 1px solid #e5e7eb;
+              text-align: center;
+            }
+            .footer p { font-size: 12px; color: #9ca3af; }
+            .topics-section { margin-top: 16px; }
+            .topics-section h3 { font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 16px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>金融智能洞察报告</h1>
+            <p>生成时间：${new Date().toLocaleString('zh-CN')} | 基于AI八步深度分析</p>
+          </div>
+          <hr class="divider">
+      `);
 
-      // 添加分隔线
-      const divider = document.createElement('hr');
-      divider.style.cssText = 'border: none; border-top: 2px solid #3b82f6; margin-bottom: 24px;';
-      exportContainer.appendChild(divider);
-
-      // 获取TOP1主题内容
+      // TOP1主题
       const topTopic = analysisResult.topTopic;
       if (topTopic) {
-        // TOP1主题卡片
-        const topicCard = document.createElement('div');
-        topicCard.style.cssText = `
-          background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-          border: 2px solid #3b82f6;
-          border-radius: 12px;
-          padding: 20px;
-          margin-bottom: 24px;
-        `;
-
-        const topicTitle = document.createElement('h2');
-        topicTitle.style.cssText = 'font-size: 22px; font-weight: 700; color: #1e3a8a; margin-bottom: 12px;';
-        topicTitle.textContent = `🔥 TOP1 热度主题：${topTopic.topic}`;
-        topicCard.appendChild(topicTitle);
-
-        const keywords = document.createElement('p');
-        keywords.style.cssText = 'font-size: 14px; color: #4b5563; margin-bottom: 12px;';
-        keywords.textContent = `关键词：${topTopic.keywords?.join('、') || ''}`;
-        topicCard.appendChild(keywords);
-
-        const newsCount = document.createElement('p');
-        newsCount.style.cssText = 'font-size: 14px; color: #4b5563;';
-        newsCount.textContent = `相关新闻：${topTopic.newsCount || topTopic.news?.length || 0} 条`;
-        topicCard.appendChild(newsCount);
-
-        exportContainer.appendChild(topicCard);
+        iframeDoc.write(`
+          <div class="topic-card">
+            <h2>🔥 TOP1 热度主题：${topTopic.topic}</h2>
+            <p><strong>关键词：</strong>${topTopic.keywords?.join('、') || ''}</p>
+            <p><strong>相关新闻：</strong>${topTopic.newsCount || topTopic.news?.length || 0} 条</p>
+          </div>
+        `);
       }
 
-      // 历史分析摘要
+      // 历史分析
       if (analysisResult.historicalAnalysis?.summary) {
-        const histSection = document.createElement('div');
-        histSection.style.cssText = 'background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 16px; margin-bottom: 24px;';
-        histSection.innerHTML = `
-          <h3 style="font-size: 18px; font-weight: 600; color: #92400e; margin-bottom: 8px;">📊 历史规律分析</h3>
-          <p style="font-size: 14px; color: #78350f;">${analysisResult.historicalAnalysis.summary}</p>
-        `;
-        exportContainer.appendChild(histSection);
+        iframeDoc.write(`
+          <div class="section hist-section">
+            <h3>📊 历史规律分析</h3>
+            <p>${analysisResult.historicalAnalysis.summary}</p>
+          </div>
+        `);
       }
 
       // 大佬仓位
       if (analysisResult.positionTracking?.summary) {
-        const posSection = document.createElement('div');
-        posSection.style.cssText = 'background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 16px; margin-bottom: 24px;';
-        posSection.innerHTML = `
-          <h3 style="font-size: 18px; font-weight: 600; color: #065f46; margin-bottom: 8px;">💼 大佬仓位追踪</h3>
-          <p style="font-size: 14px; color: #047857;">${analysisResult.positionTracking.summary}</p>
-        `;
-        exportContainer.appendChild(posSection);
+        iframeDoc.write(`
+          <div class="section pos-section">
+            <h3>💼 大佬仓位追踪</h3>
+            <p>${analysisResult.positionTracking.summary}</p>
+          </div>
+        `);
       }
 
-      // Agent讨论结论
+      // Agent讨论
       if (analysisResult.multiAgentDiscussion?.consensus) {
-        const consensus = analysisResult.multiAgentDiscussion.consensus;
-        const agentSection = document.createElement('div');
-        agentSection.style.cssText = 'background: #f3e8ff; border: 1px solid #a855f7; border-radius: 8px; padding: 16px; margin-bottom: 24px;';
-        agentSection.innerHTML = `
-          <h3 style="font-size: 18px; font-weight: 600; color: #6b21a8; margin-bottom: 8px;">🤖 五大大师投资讨论共识</h3>
-          <p style="font-size: 14px; color: #7c3aed; margin-bottom: 12px;"><strong>共识观点：</strong>${consensus.consensusView || ''}</p>
-          <p style="font-size: 14px; color: #7c3aed; margin-bottom: 8px;"><strong>推荐资产：</strong>${consensus.recommendedAssets?.join('、') || ''}</p>
-          <p style="font-size: 14px; color: #7c3aed;"><strong>仓位策略：</strong>${consensus.positionStrategy || ''}</p>
-        `;
-        exportContainer.appendChild(agentSection);
+        const c = analysisResult.multiAgentDiscussion.consensus;
+        iframeDoc.write(`
+          <div class="section agent-section">
+            <h3>🤖 五大大师投资讨论共识</h3>
+            <p><strong>共识观点：</strong>${c.consensusView || ''}</p>
+            <p><strong>推荐资产：</strong>${c.recommendedAssets?.join('、') || ''}</p>
+            <p><strong>仓位策略：</strong>${c.positionStrategy || ''}</p>
+          </div>
+        `);
       }
 
-      // 全部主题列表
-      if (analysisResult.allTopics && analysisResult.allTopics.length > 0) {
-        const topicsSection = document.createElement('div');
-        topicsSection.style.cssText = 'margin-top: 16px;';
-        topicsSection.innerHTML = `<h3 style="font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 16px;">📋 热度排名总览</h3>`;
-
+      // 热度排名
+      if (analysisResult.allTopics?.length > 0) {
+        iframeDoc.write(`<div class="topics-section"><h3>📋 热度排名总览</h3>`);
         analysisResult.allTopics.slice(0, 5).forEach((topic: any, idx: number) => {
-          const topicItem = document.createElement('div');
-          topicItem.style.cssText = `
-            display: flex;
-            align-items: center;
-            padding: 12px;
-            margin-bottom: 8px;
-            background: ${idx === 0 ? '#fff7ed' : '#f9fafb'};
-            border: 1px solid ${idx === 0 ? '#f97316' : '#e5e7eb'};
-            border-radius: 8px;
-          `;
-          topicItem.innerHTML = `
-            <span style="width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: white; background: ${idx === 0 ? '#f97316' : idx === 1 ? '#6b7280' : '#9ca3af'}; margin-right: 12px;">${idx + 1}</span>
-            <div style="flex: 1;">
-              <p style="font-size: 15px; font-weight: 600; color: #1f2937;">${topic.topic}</p>
-              <p style="font-size: 12px; color: #6b7280;">${topic.newsCount} 条相关新闻 | 热度 ${(topic.hotScore || 0).toFixed(0)}</p>
+          const rankClass = idx === 0 ? 'top' : '';
+          const badgeClass = idx === 0 ? 'rank-1' : idx === 1 ? 'rank-2' : 'rank-3';
+          iframeDoc.write(`
+            <div class="topic-item ${rankClass}">
+              <span class="rank-badge ${badgeClass}">${idx + 1}</span>
+              <div class="topic-info">
+                <h4>${topic.topic}</h4>
+                <p>${topic.newsCount} 条相关新闻 | 热度 ${(topic.hotScore || 0).toFixed(0)}</p>
+              </div>
             </div>
-          `;
-          topicsSection.appendChild(topicItem);
+          `);
         });
-
-        exportContainer.appendChild(topicsSection);
+        iframeDoc.write(`</div>`);
       }
 
-      // 添加页脚
-      const footer = document.createElement('div');
-      footer.style.cssText = 'margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center;';
-      footer.innerHTML = `
-        <p style="font-size: 12px; color: #9ca3af;">
-          本报告由金融智能洞察系统自动生成 | 分析内容仅供参考，不构成投资建议
-        </p>
-      `;
-      exportContainer.appendChild(footer);
+      iframeDoc.write(`
+          <div class="footer">
+            <p>本报告由金融智能洞察系统自动生成 | 分析内容仅供参考，不构成投资建议</p>
+          </div>
+        </body>
+        </html>
+      `);
+      iframeDoc.close();
 
-      // 添加到页面
-      document.body.appendChild(exportContainer);
+      // 等待iframe加载完成
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-      // 生成canvas - 动态获取实际高度
-      const actualHeight = exportContainer.scrollHeight;
-      exportContainer.style.height = `${actualHeight}px`;
-
-      const canvas = await html2canvas(exportContainer, {
+      // 生成canvas
+      const canvas = await html2canvas(iframeDoc.body, {
         backgroundColor: '#ffffff',
         scale: 2,
         useCORS: true,
         logging: false,
         width: 1100,
-        height: actualHeight,
         windowWidth: 1100,
-        windowHeight: actualHeight,
       });
 
-      // 清理临时元素
-      document.body.removeChild(exportContainer);
+      // 清理iframe
+      document.body.removeChild(iframe);
 
       // 转换为 base64
       const imageData = canvas.toDataURL('image/png');
