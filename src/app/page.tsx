@@ -184,223 +184,218 @@ export default function FinanceInsightPage() {
   // 导出状态
   const [isExporting, setIsExporting] = useState(false);
 
-  // 导出长图功能
+  // 导出长图功能 - 使用Canvas直接绘制
   const exportToImage = async () => {
     if (!analysisResult || isExporting) return;
 
     setIsExporting(true);
     try {
-      // 动态导入 html2canvas
-      const html2canvas = (await import('html2canvas')).default;
+      const result = analysisResult;
+      const topTopic = result.topTopic;
+      const allTopics = result.allTopics || [];
+      const historicalAnalysis = result.historicalAnalysis;
+      const positionTracking = result.positionTracking;
+      const multiAgentDiscussion = result.multiAgentDiscussion;
 
-      // 获取分析结果区域的 DOM 元素
-      const element = document.getElementById('analysis-result');
-      if (!element) {
-        alert('无法找到分析结果区域');
-        return;
-      }
+      // 计算画布高度
+      const width = 1100;
+      const padding = 40;
+      let y = padding;
+      const rowHeight = 35;
+      
+      // 计算各部分高度
+      const headerHeight = 100;
+      const topicCardHeight = 140;
+      const sectionHeight = 110;
+      const topicsSectionHeight = 60 + Math.min(allTopics.length, 5) * 65;
+      const footerHeight = 50;
+      
+      y += headerHeight; // 标题区
+      y += topTopic ? topicCardHeight : 0; // TOP1主题
+      y += historicalAnalysis?.summary ? sectionHeight : 0; // 历史分析
+      y += positionTracking?.summary ? sectionHeight : 0; // 大佬仓位
+      y += multiAgentDiscussion?.consensus ? sectionHeight + 30 : 0; // Agent讨论
+      y += allTopics.length > 0 ? topicsSectionHeight : 0; // 热度排名
+      y += footerHeight;
+      const totalHeight = y + padding;
 
-      // 创建iframe用于渲染导出内容
-      const iframe = document.createElement('iframe');
-      iframe.id = 'export-iframe';
-      iframe.style.cssText = 'position: fixed; top: 0; left: 0; width: 1100px; height: 2000px; border: none; visibility: hidden;';
-      document.body.appendChild(iframe);
+      // 创建Canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = width * 2;
+      canvas.height = totalHeight * 2;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(2, 2);
 
-      const iframeDoc = iframe.contentDocument!;
-      const iframeWin = iframe.contentWindow!;
+      // 绘制背景
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, totalHeight);
 
-      // 构建HTML内容
-      iframeDoc.open();
-      iframeDoc.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-              width: 1100px;
-              padding: 32px;
-              font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-              color: #1f2937;
-              line-height: 1.6;
-              background: #ffffff;
-            }
-            .header { margin-bottom: 16px; }
-            .header h1 { font-size: 28px; font-weight: 700; color: #1e40af; margin-bottom: 8px; }
-            .header p { font-size: 14px; color: #6b7280; }
-            .divider { border: none; border-top: 2px solid #3b82f6; margin: 16px 0 24px; }
-            .topic-card {
-              background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-              border: 2px solid #3b82f6;
-              border-radius: 12px;
-              padding: 20px;
-              margin-bottom: 24px;
-            }
-            .topic-card h2 { font-size: 22px; font-weight: 700; color: #1e3a8a; margin-bottom: 12px; }
-            .topic-card p { font-size: 14px; color: #4b5563; margin-bottom: 8px; }
-            .section {
-              border-radius: 8px;
-              padding: 16px;
-              margin-bottom: 24px;
-            }
-            .section h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
-            .section p { font-size: 14px; }
-            .hist-section { background: #fef3c7; border: 1px solid #f59e0b; color: #78350f; }
-            .pos-section { background: #ecfdf5; border: 1px solid #10b981; color: #047857; }
-            .agent-section { background: #f3e8ff; border: 1px solid #a855f7; color: #6b21a8; }
-            .topic-item {
-              display: flex;
-              align-items: center;
-              padding: 12px;
-              margin-bottom: 8px;
-              border-radius: 8px;
-              border: 1px solid #e5e7eb;
-            }
-            .topic-item.top { background: #fff7ed; border-color: #f97316; }
-            .rank-badge {
-              width: 32px; height: 32px; border-radius: 50%;
-              display: flex; align-items: center; justify-content: center;
-              font-weight: 700; color: white; margin-right: 12px;
-            }
-            .rank-1 { background: #f97316; }
-            .rank-2 { background: #6b7280; }
-            .rank-3 { background: #9ca3af; }
-            .topic-info { flex: 1; }
-            .topic-info h4 { font-size: 15px; font-weight: 600; color: #1f2937; }
-            .topic-info p { font-size: 12px; color: #6b7280; }
-            .footer {
-              margin-top: 32px;
-              padding-top: 16px;
-              border-top: 1px solid #e5e7eb;
-              text-align: center;
-            }
-            .footer p { font-size: 12px; color: #9ca3af; }
-            .topics-section { margin-top: 16px; }
-            .topics-section h3 { font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 16px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>金融智能洞察报告</h1>
-            <p>生成时间：${new Date().toLocaleString('zh-CN')} | 基于AI八步深度分析</p>
-          </div>
-          <hr class="divider">
-      `);
+      y = padding;
+
+      // 标题
+      ctx.fillStyle = '#1e40af';
+      ctx.font = 'bold 32px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.fillText('金融智能洞察报告', padding, y + 36);
+      y += 60;
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '16px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.fillText(`生成时间：${new Date().toLocaleString('zh-CN')} | 基于AI八步深度分析`, padding, y + 20);
+      y += 40;
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(width - padding, y);
+      ctx.stroke();
+      y += 30;
 
       // TOP1主题
-      const topTopic = analysisResult.topTopic;
       if (topTopic) {
-        iframeDoc.write(`
-          <div class="topic-card">
-            <h2>🔥 TOP1 热度主题：${topTopic.topic}</h2>
-            <p><strong>关键词：</strong>${topTopic.keywords?.join('、') || ''}</p>
-            <p><strong>相关新闻：</strong>${topTopic.newsCount || topTopic.news?.length || 0} 条</p>
-          </div>
-        `);
+        const cardH = 120;
+        const gradient = ctx.createLinearGradient(padding, y, width - padding, y + cardH);
+        gradient.addColorStop(0, '#eff6ff');
+        gradient.addColorStop(1, '#dbeafe');
+        ctx.fillStyle = gradient;
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(padding, y, width - padding * 2, cardH, 12);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#1e3a8a';
+        ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, sans-serif';
+        const title = `🔥 TOP1 热度主题：${topTopic.topic}`;
+        ctx.fillText(title.substring(0, 35), padding + 20, y + 38);
+        ctx.fillStyle = '#4b5563';
+        ctx.font = '15px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText(`关键词：${(topTopic.keywords || []).join('、')}`, padding + 20, y + 68);
+        ctx.fillText(`相关新闻：${topTopic.newsCount || 0} 条`, padding + 20, y + 98);
+        y += cardH + 20;
       }
 
       // 历史分析
-      if (analysisResult.historicalAnalysis?.summary) {
-        iframeDoc.write(`
-          <div class="section hist-section">
-            <h3>📊 历史规律分析</h3>
-            <p>${analysisResult.historicalAnalysis.summary}</p>
-          </div>
-        `);
+      if (historicalAnalysis?.summary) {
+        ctx.fillStyle = '#fef3c7';
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(padding, y, width - padding * 2, 95, 8);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#92400e';
+        ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText('📊 历史规律分析', padding + 16, y + 26);
+        ctx.fillStyle = '#78350f';
+        ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
+        const text = historicalAnalysis.summary;
+        for (let i = 0; i < Math.min(text.length, 90); i += 45) {
+          ctx.fillText(text.substring(i, i + 45), padding + 16, y + 52 + Math.floor(i / 45) * 20);
+        }
+        y += 110;
       }
 
       // 大佬仓位
-      if (analysisResult.positionTracking?.summary) {
-        iframeDoc.write(`
-          <div class="section pos-section">
-            <h3>💼 大佬仓位追踪</h3>
-            <p>${analysisResult.positionTracking.summary}</p>
-          </div>
-        `);
+      if (positionTracking?.summary) {
+        ctx.fillStyle = '#ecfdf5';
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(padding, y, width - padding * 2, 95, 8);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#065f46';
+        ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText('💼 大佬仓位追踪', padding + 16, y + 26);
+        ctx.fillStyle = '#047857';
+        ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
+        const text = positionTracking.summary;
+        for (let i = 0; i < Math.min(text.length, 90); i += 45) {
+          ctx.fillText(text.substring(i, i + 45), padding + 16, y + 52 + Math.floor(i / 45) * 20);
+        }
+        y += 110;
       }
 
       // Agent讨论
-      if (analysisResult.multiAgentDiscussion?.consensus) {
-        const c = analysisResult.multiAgentDiscussion.consensus;
-        iframeDoc.write(`
-          <div class="section agent-section">
-            <h3>🤖 五大大师投资讨论共识</h3>
-            <p><strong>共识观点：</strong>${c.consensusView || ''}</p>
-            <p><strong>推荐资产：</strong>${c.recommendedAssets?.join('、') || ''}</p>
-            <p><strong>仓位策略：</strong>${c.positionStrategy || ''}</p>
-          </div>
-        `);
+      if (multiAgentDiscussion?.consensus) {
+        const c = multiAgentDiscussion.consensus;
+        ctx.fillStyle = '#f3e8ff';
+        ctx.strokeStyle = '#a855f7';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(padding, y, width - padding * 2, 120, 8);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#6b21a8';
+        ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText('🤖 五大大师投资讨论共识', padding + 16, y + 26);
+        ctx.fillStyle = '#7c3aed';
+        ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText(`共识：${(c.consensusView || '').substring(0, 55)}...`, padding + 16, y + 52);
+        ctx.fillText(`推荐：${(c.recommendedAssets || []).join('、')}`, padding + 16, y + 78);
+        ctx.fillText(`策略：${(c.positionStrategy || '').substring(0, 55)}...`, padding + 16, y + 104);
+        y += 130;
       }
 
       // 热度排名
-      if (analysisResult.allTopics?.length > 0) {
-        iframeDoc.write(`<div class="topics-section"><h3>📋 热度排名总览</h3>`);
-        analysisResult.allTopics.slice(0, 5).forEach((topic: any, idx: number) => {
-          const rankClass = idx === 0 ? 'top' : '';
-          const badgeClass = idx === 0 ? 'rank-1' : idx === 1 ? 'rank-2' : 'rank-3';
-          iframeDoc.write(`
-            <div class="topic-item ${rankClass}">
-              <span class="rank-badge ${badgeClass}">${idx + 1}</span>
-              <div class="topic-info">
-                <h4>${topic.topic}</h4>
-                <p>${topic.newsCount} 条相关新闻 | 热度 ${(topic.hotScore || 0).toFixed(0)}</p>
-              </div>
-            </div>
-          `);
+      if (allTopics.length > 0) {
+        ctx.fillStyle = '#1f2937';
+        ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText('📋 热度排名总览', padding, y + 20);
+        y += 50;
+        const colors = ['#f97316', '#6b7280', '#9ca3af', '#9ca3af', '#9ca3af'];
+        allTopics.slice(0, 5).forEach((topic: any, idx: number) => {
+          ctx.fillStyle = idx === 0 ? '#fff7ed' : '#f9fafb';
+          ctx.strokeStyle = idx === 0 ? '#f97316' : '#e5e7eb';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(padding, y, width - padding * 2, 58, 8);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = colors[idx];
+          ctx.beginPath();
+          ctx.arc(padding + 24, y + 29, 16, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(String(idx + 1), padding + 24, y + 34);
+          ctx.fillStyle = '#1f2937';
+          ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText((topic.topic || '').substring(0, 32), padding + 52, y + 26);
+          ctx.fillStyle = '#6b7280';
+          ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.fillText(`${topic.newsCount}条 | 热度${(topic.hotScore || 0).toFixed(0)}`, padding + 52, y + 46);
+          y += 65;
         });
-        iframeDoc.write(`</div>`);
       }
 
-      iframeDoc.write(`
-          <div class="footer">
-            <p>本报告由金融智能洞察系统自动生成 | 分析内容仅供参考，不构成投资建议</p>
-          </div>
-        </body>
-        </html>
-      `);
-      iframeDoc.close();
+      // 页脚
+      ctx.fillStyle = '#e5e7eb';
+      ctx.fillRect(padding, y, width - padding * 2, 1);
+      y += 20;
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('本报告由金融智能洞察系统自动生成 | 分析内容仅供参考，不构成投资建议', width / 2, y);
 
-      // 等待iframe加载完成
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // 生成canvas - 自动获取内容高度
-      const canvas = await html2canvas(iframeDoc.body, {
-        backgroundColor: '#ffffff',
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        width: 1100,
-        height: iframeDoc.body.scrollHeight + 100,
-        windowWidth: 1100,
-        windowHeight: iframeDoc.body.scrollHeight + 100,
-      });
-
-      // 清理iframe
-      document.body.removeChild(iframe);
-
-      // 转换为 base64
+      // 转换为图片并上传
       const imageData = canvas.toDataURL('image/png');
-
-      // 上传到服务器
       const formData = new FormData();
       formData.append('image', imageData);
-      formData.append('title', analysisResult.topTopic?.topic || '金融洞察报告');
+      formData.append('title', topTopic?.topic || '金融洞察报告');
 
       const response = await fetch('/api/export/image', {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('上传失败');
-      }
+      if (!response.ok) throw new Error('上传失败');
+      const uploadResult = await response.json();
 
-      const result = await response.json();
-
-      // 下载图片
+      // 下载
       const link = document.createElement('a');
-      link.href = result.downloadUrl;
+      link.href = uploadResult.downloadUrl;
       link.download = `金融洞察_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.png`;
       link.target = '_blank';
       link.click();
