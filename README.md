@@ -31,6 +31,10 @@
 
 👉 **https://financialanalysis.coze.site**
 
+## 示例截图
+
+![金融分析平台](https://code.coze.cn/api/sandbox/coze_coding/file/proxy?expire_time=-1&file_path=assets%2Ffinancialanalysis.coze.site_.png&nonce=81d4f5e8-df9d-4095-bf7a-4ebfd3db5d75&project_id=7610328561177788443&sign=256ef1cba4a27ec12e9d7627cdb341b418ab594b920fb3b00154c62fa5674048)
+
 ## 本地运行
 
 ```bash
