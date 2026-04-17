@@ -29,7 +29,7 @@
 
 项目已部署，可直接体验：
 
-👉 **https://abc123.dev.coze.site**（替换为你的实际域名）
+👉 **https://financialanalysis.coze.site**
 
 ## 本地运行
 
