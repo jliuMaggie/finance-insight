@@ -55,6 +55,31 @@ pnpm dev
 - **AI**: 豆包/DeepSeek 大模型
 - **搜索**: 智能搜索 API
 
+## 自行部署配置
+
+### 1. 获取 API Key
+
+本项目使用火山引擎的大模型服务，你需要准备：
+
+- **ARK API Key**: 在 [火山引擎 ARK 控制台](https://console.volcengine.com/ark) 获取
+
+### 2. 配置环境变量
+
+在项目根目录创建 `.env` 文件：
+
+```env
+ARK_API_KEY=your_api_key_here
+```
+
+### 3. 启动项目
+
+```bash
+pnpm install
+pnpm dev
+```
+
+访问 http://localhost:5000 即可使用。
+
 ## 项目结构
 
 ```
